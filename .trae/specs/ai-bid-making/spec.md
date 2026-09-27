@@ -191,7 +191,7 @@
 2. **模板生成与编辑器**
    - 软件提供模板编辑器；用户提供标注 `[ ]` 的真实标书（图片位置沿用过往标书，少数全新情况用图文框指示），编辑器转换为软件可识别的模板。
 
-3. **占位符规范（docxtpl / Jinja2 语法，最终随技术栈选型确认）**
+3. **占位符规范（docxtpl / Jinja2 语法 —— 技术选型已确认，见 [tech-selection.md](file:///e:/bidcraft/bidcraft-master/docs/architecture/tech-selection.md)）**
    - 文字占位：`{{关键字}}`；图片占位：`{{img_关键字}}`；表格循环行：`{%tr for ...%}`/`{%tr endfor %}`；条件内容：`{%p if ...%}`/`{%p endif %}`。
    - 关键字与 FR-4 动态关键字词典、素材命名关键字三处统一；用户标注的 `[ ]` 由编辑器自动转换，无需手写。
 
@@ -300,7 +300,8 @@
 
 ## 约束
 - **技术约束**:
-  - 开发启动前需先修复本机 Python 环境（现有两个 Python 安装均已损坏），或在技术栈选型时评估纯 JS/TS 侧替代方案（docxtemplater 等）。
+  - 技术栈已确认（2026-09-28）：Electron + React + TypeScript + Ant Design 5 前端；Python FastAPI sidecar（docxtpl、PyMuPDF、PaddleOCR、LiteLLM）；SQLite。详见 [tech-selection.md](file:///e:/bidcraft/bidcraft-master/docs/architecture/tech-selection.md)。
+  - 开发前需准备独立 Python 运行环境（现有系统 Python 已损坏）：开发用独立 venv/嵌入版，最终经 PyInstaller 打包，用户机器无需安装 Python。
 - **业务约束**:
   - **数据隔离模型（企业—项目两级）**：本期即按此模型实现，属基本功能。一个用户可创建多个企业；企业与企业之间数据完全隔离——进入某企业后只能访问该企业数据，只能在该企业内创建项目。同一企业内，项目与项目之间相互隔离。同一企业内的素材库、模板库共享（不随项目隔离），企业之间不共享。本期仅一个用户，暂不实现多用户/权限管理，预留扩展。
 - **依赖项**: （待补充）
