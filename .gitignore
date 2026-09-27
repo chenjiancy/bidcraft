@@ -46,3 +46,6 @@ coverage/
 .pytest_cache/
 playwright-report/
 test-results/
+
+# 本地工作流复盘与内部笔记（永不入库）
+docs/local/
