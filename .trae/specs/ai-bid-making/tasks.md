@@ -8,19 +8,26 @@
 ## 阶段 1.0：Walking Skeleton（垂直骨架）
 > 目标：以"1 家企业 + 1 个项目 + 和县真实采购文件 + 1 个云端模型"打通最小链路。
 
-## Task 1: 开发环境与项目骨架
+## Task 1: 开发环境、项目骨架与最小 CI
 - **Status**: pending
 - **Priority**: high
 - **Depends On**: None
 - **Description**:
-  - 准备独立 Python 环境（uv 管理的 venv，不依赖已损坏的系统 Python）；初始化 sidecar（pyproject + FastAPI 最小入口）。
+  - 准备基础工具链：Node.js ≥22.12、uv、Python 3.12（由 uv 安装，不依赖已损坏的系统 Python）。
+  - 初始化 sidecar：pyproject + FastAPI 最小入口（`/health`）；生成并提交 `uv.lock`。
   - 初始化 electron-vite + React 18 + TypeScript；集成 Ant Design 5、Tailwind、React Router（Hash）。
-  - 根目录脚本可一键启动前端与 sidecar。
-- **Acceptance Criteria Addressed**: （AC 待定义；对应技术约束"独立 Python 环境"）
+  - package.json 一键脚本：`dev` 同时拉起 Renderer/Electron/Python sidecar；另含 lint、test 脚本。
+  - 建立最小 GitHub Actions `ci.yml`（windows-latest：`npm ci` → `uv sync --locked` → lint/类型检查 → 单元测试）。
+  - Husky + lint-staged 提交前钩子（ESLint/Ruff/Prettier 只查暂存文件）。
+- **Acceptance Criteria Addressed**: （AC 待定义；对应技术约束"独立 Python 环境"与 devops-environment.md 第七节 Task 1 落地项）
 - **Test Requirements**:
-  - `rule` TR-1.1: `node -v` 与 Python venv 中 `python -c "import fastapi"` 均成功（命令输出为证）。
-  - `rule` TR-1.2: `npm run dev` 能启动并打开空白 Electron 窗口（截图为证）。
-- **Notes**: 依赖版本在本任务锁定并记录。
+  - `rule` TR-1.1: `node -v`（≥22.12）与 Python venv 中 `python -c "import fastapi"` 均成功（命令输出为证）。
+  - `rule` TR-1.2: `npm run dev` 能启动并打开空白 Electron 窗口，且 sidecar 被自动拉起（截图/日志为证）。
+  - `rule` TR-1.3: `uv.lock` 与 `package-lock.json` 已提交，CI 中 `uv sync --locked`、`npm ci` 成功（CI 日志为证）。
+  - `rule` TR-1.4: 最小 `ci.yml` 在 PR 上运行成功、状态全绿（GitHub Actions 页面为证）。
+- **Notes**:
+  - 依赖版本在本任务锁定并记录；CI 状态检查在本任务后补入 main 分支保护规则。
+  - 本任务通过 PR 合并（分支保护生效后首个 PR）。
 
 ## Task 2: 应用外壳、导航与主题
 - **Status**: pending
