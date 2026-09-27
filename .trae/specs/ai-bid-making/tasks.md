@@ -1,31 +1,117 @@
 # AI标书制作 - 实施任务清单（tasks.md）
 
-> 状态：待填充。任务将在 spec.md 需求确认并完成规划后，按依赖顺序逐项拆解。
+> 状态：阶段 1.0 任务已规划（2026-09-28），1.1/1.2 为概要、进入前细化。
+> 执行纪律：逐项完成 → 立即报告 → 用户确认 → 提交 → 再进入下一项；未经确认不跨项。
+> 编码冻结：须收到用户明确"开始编码"指令后方可执行 Task 1。
 > 任务类型的测试要求（TR）仅可为 `rule` 或 `rubric`。
 
-## 任务列表
-- （暂无任务，待需求输入并完成规划后按 Task 1、Task 2 …… 补充）
+## 阶段 1.0：Walking Skeleton（垂直骨架）
+> 目标：以"1 家企业 + 1 个项目 + 和县真实采购文件 + 1 个云端模型"打通最小链路。
 
-<!--
-任务模板（规划阶段启用，复制使用，不要在标题中写状态标记）：
-
-## Task N: （任务标题）
-- **Status**: `pending`
-- **Priority**: high | medium | low
-- **Depends On**: （任务编号 或 None）
+## Task 1: 开发环境与项目骨架
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: None
 - **Description**:
-  - （实施产出）
-- **Acceptance Criteria Addressed**: （AC 编号）
+  - 准备独立 Python 环境（uv 管理的 venv，不依赖已损坏的系统 Python）；初始化 sidecar（pyproject + FastAPI 最小入口）。
+  - 初始化 electron-vite + React 18 + TypeScript；集成 Ant Design 5、Tailwind、React Router（Hash）。
+  - 根目录脚本可一键启动前端与 sidecar。
+- **Acceptance Criteria Addressed**: （AC 待定义；对应技术约束"独立 Python 环境"）
 - **Test Requirements**:
-  - `rule` TR-N.1: （可判定的二元条件与证据来源）
-  - `rubric` TR-N.2: （评估维度；1-5 分；1/3/5 锚点；通过阈值；证据来源）
-- **Notes**: （可选）
+  - `rule` TR-1.1: `node -v` 与 Python venv 中 `python -c "import fastapi"` 均成功（命令输出为证）。
+  - `rule` TR-1.2: `npm run dev` 能启动并打开空白 Electron 窗口（截图为证）。
+- **Notes**: 依赖版本在本任务锁定并记录。
 
-完成时追加：
-- **Completion Evidence**:
-  - （rule 结果、命令输出或产物）
-  - （rubric 得分、判定理由与证据）
--->
+## Task 2: 应用外壳、导航与主题
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: Task 1
+- **Description**:
+  - 主窗口 + 左侧导航 + 主工作区布局；各模块占位页（企业/项目、解析、商务标、检查、配置）。
+  - 明暗双主题切换（AntD5 + CSS 变量）；业务模块在未解锁前置灰。
+- **Test Requirements**:
+  - `rule` TR-2.1: 导航可在各占位页切换；主题切换后全部组件跟随（两种主题截图为证）。
+  - `rule` TR-2.2: 1366×768 与 4K 缩放下布局不错乱（截图为证）。
+
+## Task 3: Python Sidecar 进程管理与通信骨架
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: Task 2
+- **Description**:
+  - Sidecar 实现 `/health`；Main 负责拉起/关闭（随机端口 + 本地令牌）、健康检查、崩溃检测。
+  - preload 暴露 `sidecar:health/call/stream`、`task:cancel`；SSE 进度协议打通（测试事件流）。
+- **Test Requirements**:
+  - `rule` TR-3.1: 应用启动自动拉起 sidecar 且 `/health` 返回 200；退出后进程消失（日志/进程检查为证）。
+  - `rule` TR-3.2: Renderer 经 IPC 调用 sidecar 成功收到 SSE 事件序列（控制台/日志为证）。
+  - `rule` TR-3.3: sidecar 仅监听 127.0.0.1（配置与连接验证为证）。
+
+## Task 4: 数据层（SQLite + 迁移 + 隔离基）
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: Task 3
+- **Description**:
+  - SQLAlchemy 2 + Alembic；建立 architecture.md 第四节核心表（先 enterprise/project/config_kv/app_event，其余随阶段补）。
+  - 仓储层统一注入 enterprise_id/project_id 过滤的隔离机制。
+- **Test Requirements**:
+  - `rule` TR-4.1: 迁移命令可从零建表（数据库文件与表清单为证）。
+  - `rule` TR-4.2: pytest 覆盖跨企业/跨项目读取被拦截（测试结果为证）。
+
+## Task 5: 企业/项目管理最小功能
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: Task 4
+- **Description**:
+  - 企业创建/编辑/列表/切换（必填校验：委托代理人）；项目创建/编辑/列表（委托代理人选填）。
+  - "当前企业/当前项目"全局状态；进入企业后仅见本企业数据。
+  - 委托代理人优先级（项目优先、缺省取企业）。
+  - 删除/回收站在本任务做最小版（进回收站、不物理删）；30 天清理与完整 UI 可在 1.2 收尾完善。
+- **Test Requirements**:
+  - `rule` TR-5.1: 可创建企业并在其下创建项目；切换企业后互不可见（截图+pytest 为证）。
+  - `rule` TR-5.2: 企业委托代理人必填拦截、项目缺省时回退企业代理人（测试结果为证）。
+  - `rule` TR-5.3: 删除进入回收站而非物理删除（数据库状态为证）。
+
+## Task 6: 模型配置与连通性
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: Task 5
+- **Description**:
+  - 系统配置页：云端模型（供应商/base_url/model）+ API Key（DPAPI 存储）；本地模型（Ollama）配置预留。
+  - LiteLLM 网关接入；"测试连接"按钮返回模型响应；llm_call_log 记录模型/token/耗时。
+  - 首次外联提示（NFR-3）。
+- **Test Requirements**:
+  - `rule` TR-6.1: 配置一个云端模型并测试连接成功（界面结果为证；Key 不落明文）。
+  - `rule` TR-6.2: 一次测试调用在 llm_call_log 有记录（数据库记录为证）。
+
+## Task 7: Walking Skeleton 端到端验收
+- **Status**: pending
+- **Priority**: high
+- **Depends On**: Task 6
+- **Description**:
+  - 用和县真实样本走通：启动 → 创建企业 → 创建项目 → 进入项目 → 模型连通。
+  - 在解析入口可选择并暂存招标文件（实际解析为 1.1 内容，本任务只到上传就绪）。
+  - 验证状态机：PARSE_CONFIRMED 之前业务模块置灰。
+- **Test Requirements**:
+  - `rule` TR-7.1: 上述端到端步骤全部可执行、无阻断（操作录屏/截图为证）。
+  - `rule` TR-7.2: 未确认清单前商务标/检查入口为置灰态（截图为证）。
+- **Notes**: 本任务完成标志 1.0 结束。
+
+## 阶段 1.1：招标文件解析（概要，进入前细化）
+- Task 8: PDF/Word 文本与结构解析（PyMuPDF / python-docx；页码坐标、表格）
+- Task 9: 扫描件 OCR（PaddleOCR，自动触发）与素材 OCR 文本落库
+- Task 10: 解析配置（8 关键项 + 可选项；解析方式/高精度开关）
+- Task 11: 规则粗分 + LLM 校验（原文锚定、幻觉拦截）+ 全文摘要审计
+- Task 12: 评分办法解析 → `score_table.json`
+- Task 13: 投标文件格式章节化 docx（封面 + 各章；人工增删、地址链接）
+- Task 14: 解析清单 UI（逐条确认/增删、标红）+ 门禁解锁
+
+## 阶段 1.2：商务标生成（概要，进入前细化）
+- Task 15: 素材库管理（层级/命名规范、动态词典、归档、版本快照）
+- Task 16: 素材提取清单（查询匹配、2-3 轮循环收敛）
+- Task 17: 模板库管理（目录组织、模板编辑器、template.json、版本）
+- Task 18: 模板匹配（≥90%）与语义比对（文件关联表、差异确认）
+- Task 19: docxtpl 逐章渲染（文字/图片占位、缩放、不跨页）
+- Task 20: 转 PDF、文档合并、图片压缩
+- Task 21: 回收站完整功能与 30 天清理配置
 
 ## 问题（Review 修复项）
 - （暂无，仅在独立评审产生 actionable 发现后，按 Issue I-N 登记）
