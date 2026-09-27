@@ -1,0 +1,48 @@
+# ===== 样本数据 =====
+# 投标文件等含敏感信息（证书/身份证/社保/合同）的样本仅存本机，绝不入库
+samples-local/
+# 公开招标文件样本中大体积文件不入库（按需，>50MB 由用户本地保留）
+samples/**/*.bin
+
+# ===== 依赖与构建产物 =====
+node_modules/
+dist/
+dist-electron/
+out/
+release/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+sidecar/dist/
+sidecar/build/
+
+# ===== 环境/密钥 =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+
+# ===== 运行时数据 =====
+logs/
+*.log
+.tmp/
+tmp/
+
+# ===== 系统/编辑器 =====
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ===== 测试 =====
+coverage/
+.pytest_cache/
+playwright-report/
+test-results/
