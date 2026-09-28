@@ -44,9 +44,11 @@ export const useAppStore = create<AppState>()(
       toggleTheme: () => set((s) => ({ themeMode: s.themeMode === 'light' ? 'dark' : 'light' })),
       setThemeMode: (themeMode) => set({ themeMode }),
       setParseConfirmed: (isParseConfirmed) => set({ isParseConfirmed }),
-      // 切换企业时清空当前项目（项目隔离边界）
-      setCurrentEnterprise: (currentEnterprise) => set({ currentEnterprise, currentProject: null }),
-      setCurrentProject: (currentProject) => set({ currentProject }),
+      // 切换企业时清空当前项目并重置解析确认（项目隔离边界 + 门禁安全）
+      setCurrentEnterprise: (currentEnterprise) =>
+        set({ currentEnterprise, currentProject: null, isParseConfirmed: false }),
+      // 切换项目时重置解析确认（不同项目的解析状态独立）
+      setCurrentProject: (currentProject) => set({ currentProject, isParseConfirmed: false }),
     }),
     {
       name: 'bidcraft-ui',

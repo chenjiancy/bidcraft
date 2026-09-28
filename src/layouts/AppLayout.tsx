@@ -12,6 +12,8 @@ export default function AppLayout() {
   const navigate = useNavigate()
   const themeMode = useAppStore((s) => s.themeMode)
   const isParseConfirmed = useAppStore((s) => s.isParseConfirmed)
+  const currentEnterprise = useAppStore((s) => s.currentEnterprise)
+  const currentProject = useAppStore((s) => s.currentProject)
 
   // 同步 data-theme 到根节点（驱动 CSS 变量与 Tailwind dark variant）
   useEffect(() => {
@@ -48,15 +50,22 @@ export default function AppLayout() {
 
       <Layout style={{ background: 'var(--bc-content-bg)' }}>
         <Header
-          className="flex items-center justify-end gap-3 border-b px-6"
+          className="flex items-center justify-between border-b px-6"
           style={{
             background: 'var(--bc-header-bg)',
             borderColor: 'var(--bc-border)',
             height: 56,
           }}
         >
-          {import.meta.env.DEV && <Tag color="blue">dev</Tag>}
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            {currentEnterprise && <Tag color="blue">{currentEnterprise.name}</Tag>}
+            {currentProject && <Tag color="geekblue">{currentProject.name}</Tag>}
+            {!currentEnterprise && <Tag>未选择企业</Tag>}
+          </div>
+          <div className="flex items-center gap-3">
+            {import.meta.env.DEV && <Tag color="blue">dev</Tag>}
+            <ThemeToggle />
+          </div>
         </Header>
         <Content className="overflow-auto p-6">
           <Outlet />

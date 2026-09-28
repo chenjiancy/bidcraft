@@ -15,6 +15,7 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import * as api from '../../api/enterprise'
 import type { Enterprise, Project, RecycleBinItem } from '../../api/enterprise'
 import { useAppStore } from '../../stores/useAppStore'
@@ -36,6 +37,7 @@ export default function WorkspacePage() {
   const currentEnterprise = useAppStore((s) => s.currentEnterprise)
   const setCurrentEnterprise = useAppStore((s) => s.setCurrentEnterprise)
   const setCurrentProject = useAppStore((s) => s.setCurrentProject)
+  const navigate = useNavigate()
 
   const loadEnterprises = useCallback(async () => {
     try {
@@ -229,9 +231,19 @@ export default function WorkspacePage() {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 180,
       render: (_, record) => (
         <Space>
+          <Button
+            size="small"
+            type="primary"
+            onClick={() => {
+              setCurrentProject({ id: record.id, name: record.name, agent: record.agent })
+              navigate('/parse')
+            }}
+          >
+            进入项目
+          </Button>
           <Button
             size="small"
             icon={<EditOutlined />}
