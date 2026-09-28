@@ -1,7 +1,7 @@
 # 技术选型报告（tech-selection.md）
 
 > 项目：AI标书制作 ｜ 日期：2026-09-28 ｜ 状态：**已确认（2026-09-28 用户拍板）**
-> 决策：方案 A（Electron + React + TS + Python sidecar）｜ UI 组件库 Ant Design 5 ｜ OCR PaddleOCR
+> 决策：方案 A（Electron + React + TS + Python sidecar）｜ UI 组件库 Ant Design 5 ｜ 文档解析引擎 MinerU（内置 OCR）
 > 依据：spec.md 已确认需求（一期"解析→商务标"主线、Windows 桌面端、NFR-1～6）+ 联网调研 2026 年主流技术栈。
 
 ## 一、选型约束（来自需求）
@@ -62,10 +62,10 @@
 |---|---|---|
 | 进程形态 | FastAPI + uvicorn（本地 127.0.0.1，随机端口） | 易标同思路；Electron 启动时拉起、退出时关闭 |
 | Word 模板渲染 | **docxtpl + python-docx** | Jinja2 语法（spec FR-5 已预留）；InlineImage 免费 |
-| PDF 文本/结构解析 | PyMuPDF（fitz）为主，pdfplumber 辅 | 提取文字、页码、坐标 |
-| Word 格式解析 | python-docx（文字+表格结构） | 用于模板比对 |
-| OCR（扫描件/图片） | PaddleOCR（中文强）或 Tesseract，开发时验证 | 自动触发；同时产出素材 OCR 文本（FR-4） |
-| LLM 接入 | LiteLLM（统一 100+ 云端模型接口） | 配合本地模型（Ollama，OpenAI 兼容接口） |
+| PDF/Word/扫描件 解析引擎 | **MinerU**（Apache 2.0 自定义许可） | 一体化引擎：文字版 PDF 文本提取 + 扫描件 OCR（PP-OCRv6）+ 原生 DOCX 解析（3.0+）+ 输出 Markdown + JSON（带页码坐标和 bbox，满足原文锚定）。本机 GPU 3060Ti 8G 加速；提供 mineru-api 异步任务接口，与 sidecar 架构契合 |
+| Word 格式解析（模板比对用） | python-docx（文字+表格结构） | 用于模板比对 |
+| OCR（素材归档用） | MinerU 内置 OCR 或独立 PaddleOCR | 素材归档时识别证书文字；开发时验证是否复用 MinerU 还是独立 OCR |
+| LLM 接入（可选，解析阶段辅助） | LiteLLM（统一 100+ 云端模型接口） | 配合本地模型（Ollama，OpenAI 兼容接口）；**默认关，用户按需开启**（见 FR-2/FR-4） |
 | Word 转 PDF | LibreOffice headless（soffice）或调用本机 Word（docx2pdf） | 开发时验证可用性与保真度 |
 | 文档合并 | PyMuPDF（PDF 合并）；docx 合并用 docxcompose | |
 | 图片处理 | Pillow（缩放、压缩、格式转换） | 等比 contain 适配 |
@@ -121,15 +121,16 @@
 |---|---|---|
 | R1 | 本机 Python 已损坏 | 开发用独立 venv/嵌入版 Python；最终用 PyInstaller，用户环境不依赖本机 Python |
 | R2 | Word→PDF 保真度（排版偏移） | 优先验证 LibreOffice/本机 Word 两条路径；以真实样本比对，差异披露 |
-| R3 | OCR 准确率（手写签名、印章遮挡） | 仅作 B 类辅助 + 人工核对；关键字段靠命名规范与直接录入 |
+| R3 | OCR 准确率（手写签名、印章遮挡） | 仅作 B 类辅助 + 人工核对；关键字段靠命名规范与直接录入；MinerU PP-OCRv6 内置 |
 | R4 | sidecar 端口占用/启动失败 | 随机端口 + 健康检查；启动失败明确报错、不静默 |
-| R5 | LLM 幻觉 | 原文锚定校验（FR-2），找不到原文标红 |
-| R6 | Electron 包体 + Python 运行时过大 | PyInstaller 精简依赖；素材样本不打入安装包 |
+| R5 | LLM 幻觉 | **默认不启用 LLM**（纯确定性管线）；用户开启时走原文锚定校验（找不到原文标红） |
+| R6 | Electron 包体 + Python 运行时 + MinerU 模型过大 | PyInstaller 精简依赖；素材样本不打入安装包；MinerU 模型首次运行下载缓存 |
 | R7 | IPC/HTTP 边界安全 | sidecar 仅监听 127.0.0.1；contextBridge 最小暴露 |
+| R8 | MinerU 版本迭代 breaking change | 本期锁定具体版本；升级前回归测试 |
 
 ## 六、待用户决策项
 
 1. 总体方案是否采纳 **A（Electron+React+TS + Python sidecar）**？
 2. UI 组件库倾向：**Ant Design** 还是 **Arco Design**？（影响视觉风格）
-3. OCR 引擎：是否接受内置 **PaddleOCR**（体积较大、中文效果好），还是先用轻量 Tesseract？
+3. MinerU 版本锁定：开发时确定（3.x 稳定版 vs 4.0 新版）。
 4. 确认后下一步：输出详细架构设计文档，或直接据此填充 tasks.md。
