@@ -313,6 +313,39 @@
 - 标书制作的每一步（格式解析 → 人工确认 → 素材提取循环 → 模板匹配 → 差异确认 → 逐章生成 → 检查）均由状态机显式管理：每个文件、每个环节有明确状态（待处理/处理中/待确认/已确认/已生成/缺失/异常）。
 - 状态转换全程留痕；任何步骤异常或文件缺失只披露、不静默，且不阻断其他可推进环节，由人工决定继续或补救。
 
+### EM-6 测试金字塔与分层测试策略
+> 2026-09-28 经联网调研（Martin Fowler TestPyramid、Kent C. Dodds Testing Trophy、Spotify Testing Honeycomb、Vitest Browser Mode、Playwright Component Testing）后确认。本项目为"双技术栈 + 重 I/O + 重业务规则 + 重确定性"的桌面应用，采用 Testing Trophy + Honeycomb 混合模型，集成测试占主体。
+
+1. **分层设计与比例**
+   - **静态分析（必选地基）**：前端 TypeScript + ESLint；后端 mypy + ruff。零成本拦截低级错误，CI 必跑。
+   - **单元测试（约 30%）**：前端 Vitest（纯函数、hooks、Zustand stores、XState 状态机转换）；后端 pytest（规则库、命名规范解析、数据隔离查询过滤）。规则函数测试 10 个用例即覆盖，不过度追求单元测试数量。
+   - **集成测试（约 50%，焦点层）**：前端 React Testing Library + Vitest Browser Mode（组件交互、清单编辑、差异确认 UI）；后端 pytest + FastAPI TestClient（MinerU 解析黄金样本、docxtpl 渲染比对、SQLite 仓储层、素材归档全流程）。本项目重 I/O，核心风险在集成，故集成测试最厚。
+   - **E2E 测试（约 20%）**：Playwright（端到端主线流程：建企业→建项目→上传→解析→确认→素材→模板→渲染）。覆盖"不废标"底线。
+
+2. **专项测试**
+   - **黄金样本回归测试**：见 EM-1。用户提供的真实招标文件，解析结果经人工确认后固化为期望输出，每次 MinerU 升级或规则库变更都重跑。本项目最关键的测试资产。
+   - **数据隔离专项测试**：构造越权访问用例（企业 A 素材不出现在企业 B、项目 A 标书不被项目 B 查询到），确保仓储层统一注入 `enterprise_id` / `project_id` 过滤。地基级测试，一旦失效是灾难性的。
+   - **确定性回归测试（商务标）**：商务标生成不调用 LLM，固定输入→固定输出。固定一份解析清单 + 素材 + 模板，生成的 Word 与期望文档逐字节/结构化比对。每次模板或规则变更都跑，确保不废标。
+   - **状态机测试**：XState 所有合法转换（INIT→UPLOADED→PARSING→...→RENDERED）；非法转换被拒绝（如未确认清单进入商务标制作）；断点恢复（从任意状态都能继续）。
+   - **LLM 模式测试（可选路径）**：默认关——断言不调用 LLM；校验模式——mock LLM 返回，测试原文锚定逻辑（约束必须能在原文找到，拦截幻觉）；双通道模式——mock 两条链路，测试差异标红。
+
+3. **CI 分层触发矩阵**
+
+   | 触发事件 | 静态分析 | 单元测试 | 集成测试 | E2E 测试 | 黄金样本 |
+   |---|---|---|---|---|---|
+   | 推送 feature/fix 分支 | ✅ | ✅ | ✅ | ❌（慢） | ❌ |
+   | 创建/更新 PR | ✅ | ✅ | ✅ | ✅ | ✅ |
+   | 推送 main | ✅ | ✅ | ✅ | ✅ | ✅ |
+   | 打 v* 版本标签 | ✅ | ✅ | ✅ | ✅ | ✅ + 构建产物 |
+
+   - 分支推送跑单元+集成（快）；E2E 和黄金样本慢，留到 PR 时再跑。
+   - PR 是合并前最后一道关卡，跑全部测试。
+   - Task 1 的 PR 是第一个真正跑 CI 的 PR。
+
+4. **测试基础设施搭建时机**
+   - Vitest + pytest 框架安装与配置、CI 工作流分层 job，在 Task 1（项目骨架）中完成。
+   - 后续每个 Task 交付时，对应层级的测试必须全绿才能推送（规则 9 测试门禁）。
+
 ## 非功能需求
 ### NFR-1 运行环境与兼容性
 - **操作系统**：仅 Windows（支持 Windows 10 / 11）；macOS 等其他平台留待后续迭代。
@@ -349,7 +382,7 @@
 
 ## 约束
 - **技术约束**:
-  - 技术栈已确认（2026-09-28）：Electron + React + TypeScript + Ant Design 5 前端；Python FastAPI sidecar（docxtpl、PyMuPDF、PaddleOCR、LiteLLM）；SQLite。详见 [tech-selection.md](file:///e:/bidcraft/bidcraft-master/docs/architecture/tech-selection.md)。
+  - 技术栈已确认（2026-09-28）：Electron + React + TypeScript + Ant Design 5 前端；Python FastAPI sidecar（MinerU 内置 OCR、docxtpl、LiteLLM）；SQLite。详见 [tech-selection.md](file:///e:/bidcraft/bidcraft-master/docs/architecture/tech-selection.md)。
   - 开发前需准备独立 Python 运行环境（现有系统 Python 已损坏）：开发用独立 venv/嵌入版，最终经 PyInstaller 打包，用户机器无需安装 Python。
 - **业务约束**:
   - **数据隔离模型（企业—项目两级）**：本期即按此模型实现，属基本功能。一个用户可创建多个企业；企业与企业之间数据完全隔离——进入某企业后只能访问该企业数据，只能在该企业内创建项目。同一企业内，项目与项目之间相互隔离。同一企业内的素材库、模板库共享（不随项目隔离），企业之间不共享。本期仅一个用户，暂不实现多用户/权限管理，预留扩展。

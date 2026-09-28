@@ -213,3 +213,52 @@ INIT(已建项目)
 - API Key 仅 DPAPI；日志脱敏；
 - 文件操作经路径校验，禁止逃逸数据根目录；
 - 模型外联遵循 NFR-3（首次提示）。
+
+## 九、测试架构（EM-6）
+
+> 详见 [spec.md EM-6](file:///e:/bidcraft/bidcraft-master/.trae/specs/ai-bid-making/spec.md) 测试金字塔与分层测试策略。本节记录架构层面的测试落点。
+
+### 9.1 分层模型
+
+采用 Testing Trophy + Honeycomb 混合模型，集成测试占主体（本项目重 I/O，核心风险在集成）。
+
+| 层级 | 前端（Electron+React） | 后端（Python sidecar） | 比例 |
+|---|---|---|---|
+| 静态分析 | TypeScript + ESLint | mypy + ruff | 必选地基 |
+| 单元测试 | Vitest（纯函数、hooks、Zustand、XState 转换） | pytest（规则库、命名解析、隔离过滤） | ~30% |
+| 集成测试 | RTL + Vitest Browser Mode（组件交互、清单编辑） | pytest + FastAPI TestClient（MinerU 解析、docxtpl 渲染、SQLite 仓储） | ~50%（焦点） |
+| E2E | Playwright（主线流程：建企业→建项目→上传→解析→确认→素材→模板→渲染） | — | ~20% |
+
+### 9.2 专项测试落点
+
+| 专项 | 测试位置 | 关键点 |
+|---|---|---|
+| 黄金样本回归（EM-1） | `sidecar/tests/golden/` | 真实招标文件解析结果固化为期望输出，MinerU 升级/规则变更重跑 |
+| 数据隔离专项 | `sidecar/tests/test_isolation.py` | 构造越权访问用例，断言仓储层 `enterprise_id`/`project_id` 过滤生效 |
+| 确定性回归（商务标） | `sidecar/tests/test_render_regression.py` | 固定输入→固定输出，生成的 Word 与期望文档比对 |
+| 状态机测试 | `src/machines/__tests__/` | XState 合法/非法转换 + 断点恢复 |
+| LLM 模式测试 | `sidecar/tests/test_llm_modes.py` | 默认关断言 + mock 校验/双通道，测试原文锚定拦截幻觉 |
+
+### 9.3 CI 分层触发
+
+| 触发事件 | 静态 | 单元 | 集成 | E2E | 黄金样本 |
+|---|---|---|---|---|---|
+| 推送 feature/fix | ✅ | ✅ | ✅ | ❌ | ❌ |
+| 创建/更新 PR | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 推送 main | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 打 v* 标签 | ✅ | ✅ | ✅ | ✅ | ✅+构建 |
+
+### 9.4 目录结构补充
+
+```
+src/__tests__/              # 前端单元测试（Vitest）
+src/machines/__tests__/     # 状态机测试
+sidecar/tests/
+├── golden/                 # 黄金样本（EM-1）
+├── test_isolation.py       # 数据隔离专项
+├── test_render_regression.py  # 商务标确定性回归
+└── test_llm_modes.py       # LLM 模式测试
+e2e/                        # Playwright E2E
+```
+
+测试基础设施（Vitest + pytest 配置、CI 分层 job、示例测试）在 Task 1 搭建。
