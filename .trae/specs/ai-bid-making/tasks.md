@@ -38,7 +38,7 @@
   - electron-updater 本任务仅落地依赖与框架入口，更新检查/安装逻辑在发布前完善。
 
 ## Task 2: 应用外壳、导航与主题
-- **Status**: pending
+- **Status**: done（2026-09-28 合并，PR #15，TR-2.1～2.2 全部满足）
 - **Priority**: high
 - **Depends On**: Task 1
 - **Description**:
