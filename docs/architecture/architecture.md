@@ -117,14 +117,14 @@ bidcraft-master/
 | `parse_task` | id, project_id, file_path, mode(默认/高精度), status, result_json, confirmed_at | 解析任务 |
 | `parse_item` | id, parse_task_id, category, content, anchor_page, anchor_coord, source_snippet, risk, status(逐条确认) | 解析清单条目 |
 | `score_table` | id, project_id, version, structure_json | 评分表（EM 复用） |
-| `material` | id, enterprise_id, category, name, file_path, ocr_text, valid_until, version, status | 素材（企业级） |
+| `material` | id, enterprise_id, project_id?(项目独享), category, name, file_path, ocr_text, valid_until, version, status, deleted_at | 素材（企业共享/项目独享）；FTS5 虚表索引 name + ocr_text（BP-8） |
 | `material_extract_list` | id, project_id, round, content_json, confirmed_at | 素材提取清单（多轮） |
-| `template` | id, enterprise_id, agency, doc_type, path, version, meta_json, status | 模板（企业级） |
+| `template` | id, enterprise_id, agency, doc_type, path, version, meta_json, status, deleted_at | 模板（企业级；同目录 vX.Y 版本子文件夹） |
 | `template_compare` | id, project_id, findings_json, confirmed_at | 比对结果 |
 | `generated_doc` | id, project_id, chapter, file_path, source_template_version, status | 生成文件+版本快照 |
 | `llm_call_log` | id, project_id, model, tokens_in/out, duration_ms, cost, created_at | EM-4 成本可观测 |
 | `config_kv` | scope(system/enterprise), enterprise_id?, key, value | 配置（企业优先） |
-| `recycle_bin` | id, item_type, enterprise_id?, ref_id, deleted_at, purge_at | 回收站（30 天可配） |
+| `recycle_bin` | id, item_type, enterprise_id?, ref_id, deleted_at, purge_at | 两级回收站（项目/素材/模板均入企业内回收站；保留时长可配，默认 30 天） |
 | `app_event` | id, project_id?, type, payload, created_at | 状态转换/审计留痕 |
 
 隔离强制方式：所有业务查询默认带 `enterprise_id` / `project_id` 约束（仓储层统一注入 + 测试覆盖），杜绝跨企业/跨项目读取。
@@ -159,8 +159,8 @@ bidcraft-master/
 │               ├── project-materials/   # 项目独享资料库（社保等）
 │               ├── template-work/  # 提取到项目内的模板
 │               ├── output/         # 逐章生成 Word
-│               ├── pdf/            # 转换结果
-│               └── lists/          # 素材提取清单等成果
+│               ├── pdf/            # 转换结果（逐章 PDF + 合并 PDF，Task 20）
+│               └── lists/          # 格式清单/素材提取清单等成果（format_checklist.json / material_extract.json，Task 14/16）
 ├── recycle/                        # 系统回收站（企业）
 └── logs/                           # 按日期滚动
 ```
@@ -178,12 +178,16 @@ INIT(已建项目)
   → SCORE_PARSED(评分办法解析完成，Task 11 落地)
   → PARSE_REVIEW(待人工确认清单)
   → PARSE_CONFIRMED(清单已确认，解锁业务模块)
-  → MATERIAL_LOOP(素材提取循环)
+  → FORMAT_REVIEW(商务标格式清单待确认，Task 14 落地)
+  → FORMAT_CONFIRMED(格式清单已确认，Task 14 落地)
+  → MATERIAL_LOOP(素材提取循环，Task 16 落地)
+  → MATERIAL_CONFIRMED(素材提取清单已保存，Task 16 落地)
   → TEMPLATE_MATCHED(模板已匹配)
   → TEMPLATE_REVIEW(差异待确认)
   → READY_TO_RENDER(全部确认)
   → RENDERING(逐章生成)
   → RENDERED(已生成)
+  → EXPORTED(已转 PDF/合并导出，Task 20 落地；成果不可变)
   → CHECKED(已检查，二期)
 ```
 门禁：PARSE_CONFIRMED 之前其他业务模块 UI 置灰（FR-2）。
@@ -206,11 +210,12 @@ INIT(已建项目)
 4. 状态 → PARSE_CONFIRMED，解锁模块。
 
 ### 7.2 商务标制作
-1. 素材：`/material/query` → 可编辑查询清单 → 用户补充素材库 → 循环 2-3 轮 → 保存提取清单；
-2. 模板：`/template/match`（≥90% 或人工指定）→ 提取模板到项目；
-3. 比对：`/template/compare`（文件关联表 + finding）→ 差异列表（含投标函直接更新项）→ 人工逐一确认；
-4. 渲染：`/render/bid`（docxtpl；文字/图片占位；图片等比缩放、不跨页）→ 逐章 Word；
-5. 可选：转 PDF、合并。报价类文件按 EXTERNAL/缺失披露，不阻断。
+1. 格式：PARSE_CONFIRMED 后展示 parsed/ 逐章 docx 清单 → 增删改、新增项识别 → 逐条确认（Task 14）→ FORMAT_CONFIRMED；
+2. 素材：`/material/query` → 可编辑查询清单 → 用户补充素材库 → 循环 2-3 轮 → 保存提取清单（Task 16）→ MATERIAL_CONFIRMED；
+3. 模板：`/template/match`（≥90% 或人工指定）→ 提取模板到项目（Task 17/18）；
+4. 比对：`/template/compare`（文件关联表 + finding）→ 差异列表 → 人工逐一确认；
+5. 渲染：`/render/bid`（docxtpl；文字/图片占位；图片等比缩放、不跨页）→ 逐章 Word（Task 19）；
+6. 可选：转 PDF、PDF 合并（图片压缩推迟）→ EXPORTED（Task 20）。报价类文件按 EXTERNAL/缺失披露，不阻断。
 
 ## 八、安全边界汇总
 
