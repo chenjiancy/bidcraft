@@ -11,21 +11,15 @@ from __future__ import annotations
 import builtins
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Protocol
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models._mixins import SoftDeleteMixin
+
 # 类内方法名 list 遮蔽内建，类型注解统一用该别名
 ListType = builtins.list
-
-
-class SoftDeleteModel(Protocol):
-    """ScopedRepository 模型的最小结构约束。"""
-
-    id: str
-    deleted_at: datetime | None
 
 
 class RepositoryError(Exception):
@@ -46,7 +40,7 @@ class Scope:
     project_id: str | None = None
 
 
-class ScopedRepository[ModelT: SoftDeleteModel]:
+class ScopedRepository[ModelT: SoftDeleteMixin]:
     """所有具体仓储的基类。
 
     子类设置：
@@ -69,12 +63,12 @@ class ScopedRepository[ModelT: SoftDeleteModel]:
         for name in self.scope_columns:
             stmt = stmt.where(getattr(self.model, name) == getattr(self.scope, name))
         if not include_deleted and hasattr(self.model, "deleted_at"):
-            stmt = stmt.where(self.model.deleted_at.is_(None))  # type: ignore[attr-defined]
+            stmt = stmt.where(cast(Any, self.model.deleted_at).is_(None))
         return stmt
 
     def get(self, entity_id: str, include_deleted: bool = False) -> ModelT:
         stmt = self._filtered(include_deleted=include_deleted).where(
-            self.model.id == entity_id  # type: ignore[attr-defined]
+            cast(Any, self.model).id == entity_id
         )
         instance = self.session.execute(stmt).scalar_one_or_none()
         if instance is None:
