@@ -10,6 +10,7 @@ dist/
 dist-electron/
 out/
 release/
+*.tsbuildinfo
 __pycache__/
 *.py[cod]
 .venv/

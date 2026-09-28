@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-electron
+out
+release
+coverage
+playwright-report
+test-results
+sidecar/.venv
+sidecar/uv.lock
+package-lock.json
+
+# 存量文档（人工维护，不纳入 Prettier 门禁）
+.trae
+docs
+samples

@@ -1,0 +1,22 @@
+# 统一行尾：文本文件一律 LF（覆盖 Windows runner 的 autocrlf，保证 Prettier 一致）
+* text=auto eol=lf
+
+# Windows 专用脚本保留 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件（不做行尾转换）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.bin binary
+*.zip binary
+*.exe binary

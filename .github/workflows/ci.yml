@@ -1,0 +1,165 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+  pull_request:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  NODE_VERSION: '22'
+
+# E2E / 黄金样本触发条件（EM-6 矩阵）：
+# PR、main 推送、v* 标签触发；feature/fix 分支推送不触发
+# （if 条件直接写在 e2e / golden job 上）
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+        working-directory: sidecar
+
+      - name: ESLint
+        run: npm run lint:eslint
+
+      - name: TypeScript type check
+        run: npm run typecheck
+
+      - name: Ruff lint
+        run: npm run lint:ruff
+
+      - name: Ruff format check
+        run: uv --directory sidecar run ruff format --check app tests
+
+      - name: mypy
+        run: npm run lint:mypy
+
+      - name: Prettier check
+        run: npm run format:check
+
+  unit:
+    name: Unit Tests
+    needs: lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+        working-directory: sidecar
+
+      - name: Vitest
+        run: npm test
+
+      - name: pytest (unit)
+        run: uv --directory sidecar run pytest tests/unit -v
+
+  integration:
+    name: Integration Tests
+    needs: unit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+        working-directory: sidecar
+
+      - name: pytest (integration)
+        run: uv --directory sidecar run pytest tests/integration -v
+
+  e2e:
+    name: E2E Smoke (Electron)
+    needs: integration
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Playwright Electron smoke
+        run: npx playwright test
+
+  golden:
+    name: Golden Sample Regression
+    needs: integration
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+        working-directory: sidecar
+
+      - name: pytest (golden)
+        run: uv --directory sidecar run pytest tests/golden -v
