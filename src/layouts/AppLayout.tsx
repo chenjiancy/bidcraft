@@ -1,7 +1,7 @@
 import { Layout, Menu, Tag } from 'antd'
 import { useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { NAV_ITEMS } from './nav-config'
+import { BOTTOM_NAV_ITEMS, NAV_ITEMS } from './nav-config'
 import { useAppStore } from '../stores/useAppStore'
 import ThemeToggle from '../components/ThemeToggle'
 
@@ -11,7 +11,6 @@ export default function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const themeMode = useAppStore((s) => s.themeMode)
-  const isParseConfirmed = useAppStore((s) => s.isParseConfirmed)
   const currentEnterprise = useAppStore((s) => s.currentEnterprise)
   const currentProject = useAppStore((s) => s.currentProject)
 
@@ -27,25 +26,44 @@ export default function AppLayout() {
         className="border-r border-[var(--bc-border)]"
         style={{ background: 'var(--bc-sider-bg)' }}
       >
-        <div
-          className="flex h-16 items-center gap-2 px-5 text-base font-semibold"
-          style={{ color: 'var(--bc-text)', borderBottom: '1px solid var(--bc-border)' }}
-        >
-          AI标书制作
+        <div className="flex h-full flex-col">
+          <div
+            className="flex h-16 shrink-0 items-center gap-2 px-5 text-base font-semibold"
+            style={{ color: 'var(--bc-text)', borderBottom: '1px solid var(--bc-border)' }}
+          >
+            AI标书制作
+          </div>
+          <Menu
+            mode="inline"
+            theme={themeMode}
+            selectedKeys={[location.pathname]}
+            className="flex-1 overflow-auto"
+            style={{ borderInlineEnd: 'none', background: 'transparent' }}
+            onClick={({ key }) => navigate(key)}
+            items={NAV_ITEMS.map((item) => ({
+              key: item.path,
+              icon: item.icon,
+              label: item.label,
+            }))}
+          />
+          <Menu
+            mode="inline"
+            theme={themeMode}
+            selectedKeys={[location.pathname]}
+            className="shrink-0"
+            style={{
+              borderInlineEnd: 'none',
+              background: 'transparent',
+              borderTop: '1px solid var(--bc-border)',
+            }}
+            onClick={({ key }) => navigate(key)}
+            items={BOTTOM_NAV_ITEMS.map((item) => ({
+              key: item.path,
+              icon: item.icon,
+              label: item.label,
+            }))}
+          />
         </div>
-        <Menu
-          mode="inline"
-          theme={themeMode}
-          selectedKeys={[location.pathname]}
-          style={{ borderInlineEnd: 'none', background: 'transparent' }}
-          onClick={({ key }) => navigate(key)}
-          items={NAV_ITEMS.map((item) => ({
-            key: item.path,
-            icon: item.icon,
-            label: item.label,
-            disabled: item.requiresUnlock ? !isParseConfirmed : false,
-          }))}
-        />
       </Sider>
 
       <Layout style={{ background: 'var(--bc-content-bg)' }}>

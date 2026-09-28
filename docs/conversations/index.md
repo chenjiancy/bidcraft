@@ -8,3 +8,6 @@
 | 04 | 2026-09-28 | Task 1 编码：项目骨架与最小 CI | Electron44+React18+TS+AntD5+Tailwind 骨架、FastAPI sidecar(/health)、Vitest/pytest 分层、ci.yml 分层 job、Husky、dev/prod 隔离、electron-updater 骨架 | [session-04.md](sessions/2026-09-28-session-04.md) |
 | 05 | 2026-09-28 | Task 3 编码：Sidecar 进程管理与通信骨架 | 随机端口+本地令牌、IPC 白名单(call/stream/cancel)、SSE 测试事件流、崩溃检测、127.0.0.1 限定；修复 shell 进程树孤儿问题 | [session-05.md](sessions/2026-09-28-session-05.md) |
 | 06 | 2026-09-28 | Task 4 编码：数据层基座 | SQLAlchemy 2.1 ORM（enterprise/project/config_kv/app_event）、Alembic 首版迁移（从零建库实证）、仓储层 scope 统一注入（跨企业读写/写入拦截） | [session-06.md](sessions/2026-09-28-session-06.md) |
+| 07 | 2026-09-28 | Task 5 编码：企业/项目管理最小功能 | 企业/项目 CRUD + 回收站 + 全局企业/项目上下文，TR-5.1/5.2/5.3 全满足 | [session-07.md](sessions/2026-09-28-session-07.md) |
+| 08 | 2026-09-28 | Task 8 编码：招标文件文本/OCR 解析与结构化 | MinerU 3.4.5 独立环境封装、去重/预处理/章节切分/Checkpoint 断点续跑、SSE 进度与取消、真实样本端到端验证（57 页文字版/97 页扫描件） | [session-08.md](sessions/2026-09-28-session-08.md) |
+| 09 | 2026-09-29 | Task 9 编码：解析配置 | 18 项目录（8 关键必选+10 其他）+ LLM 总开关/模式、项目级 parse_project_config 表、GET/PUT config API、PARSED 后变更提示重解析、122+26 测试全绿 | [session-09.md](sessions/2026-09-29-session-09.md) |

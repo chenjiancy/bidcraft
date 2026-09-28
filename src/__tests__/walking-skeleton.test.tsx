@@ -8,12 +8,13 @@ describe('Task 7: Walking Skeleton 端到端', () => {
     resetAppStore()
   })
 
-  it('TR-7.2: 未确认解析清单前商务标/标书检查菜单置灰', () => {
+  it('TR-7.2: 首页导航无商务标/标书检查入口，未确认清单时路由仍被门禁拦截', () => {
     renderApp('/')
-    expect(screen.getByRole('menuitem', { name: '商务标制作' })).toHaveClass(
-      'ant-menu-item-disabled',
-    )
-    expect(screen.getByRole('menuitem', { name: '标书检查' })).toHaveClass('ant-menu-item-disabled')
+    for (const label of ['招标文件解析', '商务标制作', '标书检查']) {
+      expect(screen.queryByRole('menuitem', { name: label })).not.toBeInTheDocument()
+    }
+    renderApp('/bid')
+    expect(screen.getByText('模块未解锁')).toBeInTheDocument()
   })
 
   it('TR-7.1: 选项目→登记招标文件→解析完成→商务标解锁（Task 8 真实链路）', async () => {
@@ -28,11 +29,10 @@ describe('Task 7: Walking Skeleton 端到端', () => {
 
     renderApp('/parse')
 
-    // 1. 解析页加载完成（引擎探针 + 状态查询），商务标制作仍置灰
+    // 1. 解析页加载完成（引擎探针 + 状态查询），门禁未解锁、无业务入口按钮
     const pickBtn = await screen.findByRole('button', { name: /选择招标文件/ })
-    expect(screen.getByRole('menuitem', { name: '商务标制作' })).toHaveClass(
-      'ant-menu-item-disabled',
-    )
+    expect(useAppStore.getState().isParseConfirmed).toBe(false)
+    expect(screen.queryByRole('button', { name: '前往商务标制作' })).not.toBeInTheDocument()
 
     // 2. 选择本机招标文件
     fireEvent.click(pickBtn)
@@ -41,16 +41,16 @@ describe('Task 7: Walking Skeleton 端到端', () => {
     // 3. 登记并开始解析（mock SSE 立即 completed）
     fireEvent.click(screen.getByRole('button', { name: /登记并开始解析/ }))
 
-    // 4. 解析完成后门禁解锁：商务标制作 / 标书检查菜单可用
+    // 4. 解析完成后门禁解锁：出现前往商务标制作/标书检查入口按钮
     await waitFor(() => {
-      expect(screen.getByRole('menuitem', { name: '商务标制作' })).not.toHaveClass(
-        'ant-menu-item-disabled',
-      )
+      expect(useAppStore.getState().isParseConfirmed).toBe(true)
     })
-    expect(screen.getByRole('menuitem', { name: '标书检查' })).not.toHaveClass(
-      'ant-menu-item-disabled',
-    )
-    expect(useAppStore.getState().isParseConfirmed).toBe(true)
+    const bidEntry = await screen.findByRole('button', { name: '前往商务标制作' })
+    expect(screen.getByRole('button', { name: '前往标书检查' })).toBeInTheDocument()
+
+    // 5. 点击入口可进入商务标页面（导航菜单已无此入口，靠解析页按钮进入）
+    fireEvent.click(bidEntry)
+    expect(await screen.findByText(/素材提取、模板匹配与比对/)).toBeInTheDocument()
   })
 
   it('切换项目时重置解析确认状态', () => {

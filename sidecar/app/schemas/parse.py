@@ -45,3 +45,38 @@ class ParseStatusOut(BaseModel):
     checkpoint: dict[str, Any] | None = None
     chapters: dict[str, Any] | None = None
     dedupe: dict[str, Any] | None = None
+
+
+# ---------- Task 9：解析配置 ----------
+
+
+class ParseConfigItemOut(BaseModel):
+    key: str
+    label: str
+    required: bool
+    selected: bool
+
+
+class ParseConfigOut(BaseModel):
+    # True 表示项目尚未保存过配置，返回的是默认配置
+    is_default: bool
+    items: list[ParseConfigItemOut]
+    llm_enabled: bool
+    llm_mode: str
+
+
+class ParseConfigUpdate(BaseModel):
+    """勾选的配置项 key 全集（关键项必须包含）+ LLM 开关与模式。"""
+
+    selected: list[str] = Field(..., max_length=50)
+    llm_enabled: bool = False
+    llm_mode: str | None = None
+
+
+class ParseConfigSavedOut(BaseModel):
+    config: ParseConfigOut
+    # 已完成解析（PARSED）后发生配置变更：要素层需重新解析才生效
+    reparse_required: bool = False
+    changes: dict[str, Any] = {}
+    # 受影响的 checkpoint item key（Task 9 物理层不受影响恒为空；Task 10 扩展）
+    affected_items: list[str] = []
