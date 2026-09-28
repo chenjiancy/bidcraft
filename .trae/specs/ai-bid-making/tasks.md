@@ -17,17 +17,25 @@
   - 初始化 sidecar：pyproject + FastAPI 最小入口（`/health`）；生成并提交 `uv.lock`。
   - 初始化 electron-vite + React 18 + TypeScript；集成 Ant Design 5、Tailwind、React Router（Hash）。
   - package.json 一键脚本：`dev` 同时拉起 Renderer/Electron/Python sidecar；另含 lint、test 脚本。
-  - 建立最小 GitHub Actions `ci.yml`（windows-latest：`npm ci` → `uv sync --locked` → lint/类型检查 → 单元测试）。
+  - 建立最小 GitHub Actions `ci.yml`（windows-latest，分层 job：lint → 单元 → 集成；PR 上额外触发 E2E 与黄金样本，对应 EM-6 触发矩阵；步骤为 `npm ci` → `uv sync --locked` → lint/类型检查 → 测试）。
   - Husky + lint-staged 提交前钩子（ESLint/Ruff/Prettier 只查暂存文件）。
+  - 测试基础设施（EM-6 要求 Task 1 落地）：前端 Vitest（含最小用例与配置）；Python pytest（含 `conftest` 与隔离测试夹具基线）；CI `ci.yml` 按触发矩阵分层运行。
+  - dev/prod 环境隔离骨架（NFR-7 / architecture.md 第十章要求 Task 1 落地）：userData 按 `VITE_DEV_SERVER_URL` 检测分流 `%AppData%\BidCraft-dev`（开发）/ `%AppData%\BidCraftApp`（生产）；sidecar 经 `--data-root` + `BIDCRAFT_DATA_ROOT` 接收数据根。
+  - 自动更新框架骨架（NFR-7 / architecture.md 第十一章要求 Task 1 落地）：安装 `electron-updater` + `electron-builder`（NSIS）依赖与最小配置入口；发布/检查更新逻辑在阶段 1.0 末或发布前完善，本任务仅落地依赖与框架入口。
 - **Acceptance Criteria Addressed**: （AC 待定义；对应技术约束"独立 Python 环境"与 devops-environment.md 第七节 Task 1 落地项）
 - **Test Requirements**:
   - `rule` TR-1.1: `node -v`（≥22.12）与 Python venv 中 `python -c "import fastapi"` 均成功（命令输出为证）。
   - `rule` TR-1.2: `npm run dev` 能启动并打开空白 Electron 窗口，且 sidecar 被自动拉起（截图/日志为证）。
   - `rule` TR-1.3: `uv.lock` 与 `package-lock.json` 已提交，CI 中 `uv sync --locked`、`npm ci` 成功（CI 日志为证）。
   - `rule` TR-1.4: 最小 `ci.yml` 在 PR 上运行成功、状态全绿（GitHub Actions 页面为证）。
+  - `rule` TR-1.5: `npm test` 可运行 Vitest 并通过最小用例；`uv run pytest` 可运行 pytest 并通过最小用例（测试输出为证）。
+  - `rule` TR-1.6: CI `ci.yml` 存在分层 job（lint/单元/集成，PR 额外触发 E2E/黄金样本），PR 上触发成功（CI 页面为证）。
+  - `rule` TR-1.7: 开发环境 userData 落在 `BidCraft-dev`、生产构建落在 `BidCraftApp`（目录检查/日志为证）。
+  - `rule` TR-1.8: `electron-updater` 与 `electron-builder` 已在 package.json 依赖中并存在最小配置入口（依赖树/配置文件为证）。
 - **Notes**:
   - 依赖版本在本任务锁定并记录；CI 状态检查在本任务后补入 main 分支保护规则。
   - 本任务通过 PR 合并（分支保护生效后首个 PR）。
+  - electron-updater 本任务仅落地依赖与框架入口，更新检查/安装逻辑在发布前完善。
 
 ## Task 2: 应用外壳、导航与主题
 - **Status**: pending
@@ -103,8 +111,8 @@
 - **Notes**: 本任务完成标志 1.0 结束。
 
 ## 阶段 1.1：招标文件解析（概要，进入前细化）
-- Task 8: PDF/Word 文本与结构解析（PyMuPDF / python-docx；页码坐标、表格）
-- Task 9: 扫描件 OCR（PaddleOCR，自动触发）与素材 OCR 文本落库
+- Task 8: PDF/Word 文本与结构解析（MinerU 文字版提取 + 页码坐标/bbox + 表格；输出 Markdown/JSON，与 spec.md FR-2 一致）
+- Task 9: 扫描件 OCR（MinerU 内置 PP-OCRv6 自动触发）与素材 OCR 文本落库
 - Task 10: 解析配置（8 关键项 + 可选项；解析方式/高精度开关）
 - Task 11: 规则粗分 + LLM 校验（原文锚定、幻觉拦截）+ 全文摘要审计
 - Task 12: 评分办法解析 → `score_table.json`

@@ -7,7 +7,7 @@
 - [x] 项目目标与非目标边界已确认（一期"解析→商务标"主线）
 - [x] 背景与参考项目（易标）已记录
 - [x] FR-1～FR-5 已逐条确认落盘
-- [x] 非功能需求 NFR-1～NFR-6 已确认
+- [x] 非功能需求 NFR-1～NFR-7 已确认
 - [x] 假设 AS-1～AS-5 已确认
 - [ ] FR-6 标书检查需求待讨论（阶段二开发前）
 
@@ -50,3 +50,5 @@
 - [ ] 用户环境无需安装 Python（PyInstaller 内置）
 - [ ] API Key 未出现在配置/日志/包中
 - [ ] 大体积样本未打入安装包
+- [ ] electron-updater 自动更新框架已集成（依赖、更新源 GitHub Releases、更新检查/安装逻辑；对应 NFR-7 / architecture.md 第十一章）
+- [ ] dev/prod userData 目录隔离已验证（生产构建走 `BidCraftApp`，与开发环境 `BidCraft-dev` 互不污染；对应 NFR-7 / architecture.md 第十章）

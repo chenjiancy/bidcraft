@@ -128,9 +128,9 @@
 | R7 | IPC/HTTP 边界安全 | sidecar 仅监听 127.0.0.1；contextBridge 最小暴露 |
 | R8 | MinerU 版本迭代 breaking change | 本期锁定具体版本；升级前回归测试 |
 
-## 六、待用户决策项
+## 六、已决策项（2026-09-28 用户拍板）
 
-1. 总体方案是否采纳 **A（Electron+React+TS + Python sidecar）**？
-2. UI 组件库倾向：**Ant Design** 还是 **Arco Design**？（影响视觉风格）
-3. MinerU 版本锁定：开发时确定（3.x 稳定版 vs 4.0 新版）。
-4. 确认后下一步：输出详细架构设计文档，或直接据此填充 tasks.md。
+1. ✅ 总体方案采纳 **A（Electron + React + TS + Python sidecar）**——已落盘 spec.md/架构/tasks.md。
+2. ✅ UI 组件库选定 **Ant Design 5**——已写入 spec.md 约束与 tasks.md Task 1。
+3. ⏳ MinerU 版本锁定：决策已确认为"开发时确定（3.x 稳定版 vs 4.0 新版）"——记入 spec.md 待解决问题 TS-2，开发 Task 8 前定版。
+4. ✅ 后续路径：已输出架构设计文档（architecture.md，含第十/十一章 dev/prod 隔离 + 发布更新）并填充 tasks.md（Task 1-7 + 1.1/1.2 概要）。
