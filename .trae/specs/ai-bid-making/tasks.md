@@ -61,7 +61,7 @@
   - `rule` TR-3.3: sidecar 仅监听 127.0.0.1（配置与连接验证为证）。
 
 ## Task 4: 数据层（SQLite + 迁移 + 隔离基）
-- **Status**: pending
+- **Status**: done（2026-09-28 合并，PR #19，TR-4.1/4.2 全部满足）
 - **Priority**: high
 - **Depends On**: Task 3
 - **Description**:
