@@ -111,7 +111,7 @@
 - **Notes**: 本任务完成标志 1.0 结束。
 
 ## 阶段 1.1：招标文件解析（概要，进入前细化）
-- Task 8: PDF/Word 文本与结构解析（MinerU 文字版提取 + 页码坐标/bbox + 表格；输出 Markdown/JSON，与 spec.md FR-2 一致）
+- Task 8: PDF/Word 文本与结构解析（MinerU 文字版提取 + 页码坐标/bbox + 表格；输出 Markdown/JSON；含 .doc 经 LibreOffice headless 预处理、整份合并单文件章节切分、同名多格式去重，与 spec.md FR-2 一致）
 - Task 9: 扫描件 OCR（MinerU 内置 PP-OCRv6 自动触发）与素材 OCR 文本落库
 - Task 10: 解析配置（8 关键项 + 可选项；解析方式/高精度开关）
 - Task 11: 规则粗分 + LLM 校验（原文锚定、幻觉拦截）+ 全文摘要审计
