@@ -8,11 +8,24 @@
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Protocol
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+
+# 类内方法名 list 遮蔽内建，类型注解统一用该别名
+ListType = builtins.list
+
+
+class SoftDeleteModel(Protocol):
+    """ScopedRepository 模型的最小结构约束。"""
+
+    id: str
+    deleted_at: datetime | None
 
 
 class RepositoryError(Exception):
@@ -33,7 +46,7 @@ class Scope:
     project_id: str | None = None
 
 
-class ScopedRepository[ModelT]:
+class ScopedRepository[ModelT: SoftDeleteModel]:
     """所有具体仓储的基类。
 
     子类设置：
@@ -56,17 +69,19 @@ class ScopedRepository[ModelT]:
         for name in self.scope_columns:
             stmt = stmt.where(getattr(self.model, name) == getattr(self.scope, name))
         if not include_deleted and hasattr(self.model, "deleted_at"):
-            stmt = stmt.where(self.model.deleted_at.is_(None))
+            stmt = stmt.where(self.model.deleted_at.is_(None))  # type: ignore[attr-defined]
         return stmt
 
     def get(self, entity_id: str, include_deleted: bool = False) -> ModelT:
-        stmt = self._filtered(include_deleted=include_deleted).where(self.model.id == entity_id)
+        stmt = self._filtered(include_deleted=include_deleted).where(
+            self.model.id == entity_id  # type: ignore[attr-defined]
+        )
         instance = self.session.execute(stmt).scalar_one_or_none()
         if instance is None:
             raise NotFoundError(entity_id)
         return instance
 
-    def list(self, include_deleted: bool = False) -> list[ModelT]:
+    def list(self, include_deleted: bool = False) -> ListType[ModelT]:
         return list(self.session.execute(self._filtered(include_deleted)).scalars().all())
 
     def add(self, instance: ModelT) -> ModelT:
@@ -80,5 +95,5 @@ class ScopedRepository[ModelT]:
         self.session.add(instance)
         return instance
 
-    def add_all(self, instances: Iterable[ModelT]) -> list[ModelT]:
+    def add_all(self, instances: Iterable[ModelT]) -> ListType[ModelT]:
         return [self.add(instance) for instance in instances]
