@@ -49,6 +49,14 @@ export interface CheckpointSummary {
   items: CheckpointItem[]
 }
 
+export interface ExtractionSummary {
+  doc_type: string | null
+  items_total: number
+  items_extracted: number
+  red_flags: number
+  llm: Record<string, unknown> | null
+}
+
 export interface ParseStatus {
   parse_status: string
   running: boolean
@@ -56,6 +64,7 @@ export interface ParseStatus {
   checkpoint: CheckpointSummary | null
   chapters: Record<string, unknown> | null
   dedupe: Record<string, unknown> | null
+  extraction: ExtractionSummary | null
 }
 
 // ---------- Task 9：解析配置 ----------
@@ -106,6 +115,7 @@ export function registerSources(
 /**
  * 启动解析（或断点续跑），订阅 SSE 进度。
  * onProgress 会先收到一条 stage='meta' 事件，extra.taskId 可用于取消。
+ * apiKey：LLM 校验模式所需（DPAPI 取出后临时透传，不落库）。
  * @returns 终态事件（completed/failed/cancelled）
  */
 export function startParse(
@@ -113,10 +123,11 @@ export function startParse(
   projectId: string,
   reparse: boolean,
   onProgress: (event: ParseEvent) => void,
+  apiKey?: string | null,
 ): Promise<ParseEvent> {
   return window.bid.sidecar.stream(
     projectRoute(enterpriseId, projectId, 'start'),
-    { reparse },
+    { reparse, api_key: apiKey ?? null },
     onProgress,
   ) as Promise<ParseEvent>
 }

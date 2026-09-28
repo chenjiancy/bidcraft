@@ -138,8 +138,12 @@ def test_payload_forward_compatible_fills_new_keys() -> None:
 
 
 def test_affected_checkpoint_items_never_touches_physical_layer() -> None:
-    # TR-9.4（Task 9 阶段）：配置变化不得触发 mineru/chapters 等物理层重跑
+    # TR-9.4（Task 10 起）：配置变化只影响要素层 extract 项，不得触发物理层重跑
     changes = {"selected_added": ["bid_bond"], "llm_enabled": {"from": False, "to": True}}
     affected = cfg.affected_checkpoint_items(changes)
-    assert affected == ()
+    assert set(affected) == {"extract:coarse", "extract:llm"}
+    assert not any(
+        k.startswith(("mineru:", "chapters:", "preprocess:")) or k in ("dedupe", "dedupe-verify")
+        for k in affected
+    )
     assert cfg.affected_checkpoint_items({}) == ()

@@ -30,13 +30,17 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.tasks import registry
 from app.parse import chapters as chapters_mod
+from app.parse import config as parse_config
 from app.parse import dedupe as dedupe_mod
-from app.parse import engine, paths, preprocess, state
+from app.parse import engine, llm_validate, paths, preprocess, state
 from app.parse.checkpoint import CheckpointStore
 from app.parse.dedupe import SourceFile
 from app.repositories.app_event import AppEventRepository
 from app.repositories.base import NotFoundError, Scope
+from app.repositories.config_kv import ConfigKVRepository
+from app.repositories.parse_config import ParseConfigRepository
 from app.repositories.project import ProjectRepository
+from app.rules import extract as rules_extract
 
 JOB_TYPE = "document_parse"
 _SOURCES_FILE = "sources.json"
@@ -48,7 +52,14 @@ _W_DEDUPE = 5
 _W_PREPROCESS_END = 20
 _W_VERIFY_END = 25
 _W_MINERU_END = 85
-# chapters 收尾到 100
+_W_CHAPTERS_END = 92
+_W_EXTRACT_END = 96
+# LLM 校验收尾到 100
+
+# LLM 并发上限（校验模式批量项）
+_LLM_CONCURRENCY = 4
+# 预热后等待缓存生效（秒）
+_LLM_CACHE_WARMUP_WAIT = 2.0
 
 ProgressSink = Callable[[dict[str, Any]], None]
 
@@ -200,9 +211,14 @@ def register_sources(
     payload["updated_at"] = _now()
     _write_json(_sources_path(e_dir, p_dir), payload)
 
-    # 新文件使既有解析产物失效：清 checkpoint/dedupe/chapters（raw/work 重跑覆盖）
+    # 新文件使既有解析产物失效：清 checkpoint/dedupe/chapters/extract（raw/work 重跑覆盖）
     ckpt = paths.checkpoints_dir(e_dir, p_dir) / f"{JOB_TYPE}.json"
-    for stale in (ckpt, _dedupe_path(e_dir, p_dir), _chapters_path(e_dir, p_dir)):
+    for stale in (
+        ckpt,
+        _dedupe_path(e_dir, p_dir),
+        _chapters_path(e_dir, p_dir),
+        paths.extract_list_path(e_dir, p_dir),
+    ):
         if stale.is_file():
             stale.unlink()
 
@@ -343,8 +359,13 @@ async def run_parse(
     *,
     reparse: bool,
     emit: ProgressSink,
+    api_key: str | None = None,
 ) -> None:
-    """执行（或断点续跑）解析。emit 推送 SSE 事件 dict；终态由本函数推送。"""
+    """执行（或断点续跑）解析。emit 推送 SSE 事件 dict；终态由本函数推送。
+
+    api_key：LLM 校验模式（Task 10）的云端 Key，仅当项目配置启用
+    llm_enabled 且 mode=validate 时使用；纯规则路径忽略。
+    """
     eid, pid = enterprise_id, project_id
     ckpt_path = paths.checkpoints_dir(eid, pid) / f"{JOB_TYPE}.json"
     cancel_event = registry.register(task_id)
@@ -358,6 +379,14 @@ async def run_parse(
             ckpt_path, JOB_TYPE, {"dedupe": "同名多格式去重分析"}
         )
         store.reset_pending()
+
+        # Task 10 要素层 checkpoint 项：extract:coarse 恒有（确定性）；
+        # extract:llm 仅 LLM 总开关开启且为校验模式时注册（TR-10.9：
+        # dual_channel 推迟，按默认路径不调 LLM）
+        cfg = _load_parse_config(factory, eid, pid)
+        store._add_new_items({"extract:coarse": "规则粗分要素提取（规则库）"})
+        if cfg.llm_enabled and cfg.llm_mode == parse_config.LLM_VALIDATE:
+            store._add_new_items({"extract:llm": "LLM 校验（校验模式）"})
 
         _transition(factory, eid, pid, state.PARSING, reason="parse_started")
         emit({"stage": "progress", "percent": 0, "message": "解析任务开始"})
@@ -546,7 +575,9 @@ async def run_parse(
                 emit(
                     {
                         "stage": "progress",
-                        "percent": _w_between(_W_MINERU_END, 100, i + 1, len(chapter_items)),
+                        "percent": _w_between(
+                            _W_MINERU_END, _W_CHAPTERS_END, i + 1, len(chapter_items)
+                        ),
                         "message": f"章节切分完成：{source_stem}"
                         f"（{chapter_result['stats']['chapter_count']} 章）",
                     }
@@ -554,6 +585,60 @@ async def run_parse(
             except Exception as exc:
                 store.mark_error(key, str(exc))
                 raise
+
+        # ---- stage 6: 规则粗分（Task 10，确定性，恒有） ----
+        if store.get("extract:coarse").state != "success":
+            _check_cancel(cancel_event)
+            store.mark_running("extract:coarse")
+            try:
+                coarse_out = await _run_extract_coarse(factory, eid, pid, store, cfg)
+                store.mark_success("extract:coarse", coarse_out)
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": _W_EXTRACT_END,
+                        "message": (
+                            f"规则粗分完成：{coarse_out['items_extracted']}"
+                            f"/{coarse_out['items_total']} 项匹配"
+                            + (
+                                f"，{coarse_out['red_flags']} 条标红"
+                                if coarse_out["red_flags"]
+                                else ""
+                            )
+                        ),
+                    }
+                )
+            except Exception as exc:
+                store.mark_error("extract:coarse", str(exc))
+                raise
+
+        # ---- stage 7: LLM 校验（Task 10，仅校验模式；失败不阻塞 PARSED） ----
+        if "extract:llm" in store.items and store.get("extract:llm").state != "success":
+            _check_cancel(cancel_event)
+            store.mark_running("extract:llm")
+            try:
+                llm_out = await _run_extract_llm(factory, eid, pid, store, api_key, emit)
+                store.mark_success("extract:llm", llm_out)
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": 100,
+                        "message": f"LLM 校验完成：{llm_out['validated']} 项已校验",
+                    }
+                )
+            except Exception as exc:
+                # LLM 为可选增强：失败只标记该项 error + app_event，整跑仍 PARSED
+                store.mark_error("extract:llm", str(exc))
+                _record_event(
+                    factory, eid, pid, "parse_extract_llm_error", {"error": str(exc)[:500]}
+                )
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": 100,
+                        "message": f"LLM 校验失败（不影响规则粗分结果）：{str(exc)[:120]}",
+                    }
+                )
 
         _transition(factory, eid, pid, state.PARSED, reason="parse_completed")
         emit(
@@ -584,6 +669,202 @@ async def run_parse(
 def _check_cancel(cancel_event: asyncio.Event) -> None:
     if cancel_event.is_set():
         raise asyncio.CancelledError("用户取消")
+
+
+# ---------- Task 10：要素提取（规则粗分 + LLM 校验） ----------
+
+
+def _load_parse_config(
+    factory: sessionmaker[Session], enterprise_id: str, project_id: str
+) -> parse_config.ParseConfig:
+    """读取项目级解析配置；未保存/损坏回退默认（配置 API 已保证合法性）。"""
+    with factory() as session:
+        payload = ParseConfigRepository(session, Scope(enterprise_id=enterprise_id)).get_payload(
+            project_id
+        )
+    try:
+        return parse_config.from_payload(payload)
+    except parse_config.ConfigError:
+        return parse_config.default_config()
+
+
+def _content_lists_from_store(
+    store: CheckpointStore, enterprise_id: str, project_id: str
+) -> dict[str, list[dict[str, Any]]]:
+    """从成功的 mineru 项收集 {source_stem: content_list 块数组}。"""
+    proj_dir = paths.project_dir(enterprise_id, project_id)
+    out: dict[str, list[dict[str, Any]]] = {}
+    for key, item in store.items.items():
+        if not key.startswith("mineru:") or item.state != "success" or not item.output:
+            continue
+        cl_rel = item.output.get("content_list")
+        if not cl_rel:
+            continue
+        stem = Path(str(item.output.get("input", key))).stem
+        out[stem] = chapters_mod.load_content_list(proj_dir / str(cl_rel))
+    return out
+
+
+def _full_markdown_from_store(store: CheckpointStore, enterprise_id: str, project_id: str) -> str:
+    """合并全部 mineru markdown（LLM 校验的公共前缀，BP-10）。"""
+    proj_dir = paths.project_dir(enterprise_id, project_id)
+    parts: list[str] = []
+    for key, item in store.items.items():
+        if not key.startswith("mineru:") or item.state != "success" or not item.output:
+            continue
+        md_rel = item.output.get("markdown")
+        if not md_rel:
+            continue
+        md_path = proj_dir / str(md_rel)
+        if md_path.is_file():
+            parts.append(md_path.read_text(encoding="utf-8"))
+    return "\n\n".join(parts)
+
+
+async def _run_extract_coarse(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    store: CheckpointStore,
+    cfg: parse_config.ParseConfig,
+) -> dict[str, Any]:
+    """规则粗分（纯确定性）：产出 extract_list.json，返回 checkpoint output。"""
+    chapters_payload = _read_json(_chapters_path(enterprise_id, project_id), {"sources": []})
+    content_lists = _content_lists_from_store(store, enterprise_id, project_id)
+    selected = {k for k, v in cfg.items.items() if v}
+
+    llm_info: dict[str, Any] = {
+        "enabled": cfg.llm_enabled,
+        "mode": cfg.llm_mode if cfg.llm_enabled else None,
+        "status": "not_run",
+    }
+    if cfg.llm_enabled and cfg.llm_mode == parse_config.LLM_DUAL_CHANNEL:
+        # TR-10.9：双通道推迟到后续迭代，按默认路径执行并注明
+        llm_info["status"] = "deferred"
+        llm_info["note"] = "双通道模式推迟到后续迭代，本次按默认路径（纯规则）执行，未调用 LLM"
+    elif cfg.llm_enabled and cfg.llm_mode == parse_config.LLM_VALIDATE:
+        llm_info["status"] = "pending"
+
+    payload = await asyncio.to_thread(
+        rules_extract.run_extraction,
+        chapters_payload,
+        content_lists,
+        selected,
+        generated_at=_now(),
+        llm_info=llm_info,
+    )
+    _write_json(paths.extract_list_path(enterprise_id, project_id), payload)
+
+    # 术语动态词典（<data_root>/config/keywords.dict.json，项目间共享累积）
+    dict_path = paths.data_root() / "config" / "keywords.dict.json"
+    existing = _read_json(dict_path, {"version": 1, "history": []})
+    entry = {"project_id": project_id, "at": _now(), **payload["doc_type"]["terms"]}
+    history = [h for h in existing.get("history", []) if h.get("project_id") != project_id]
+    history.append(entry)
+    _write_json(dict_path, {"version": 1, "updated_at": _now(), "history": history})
+
+    found = sum(1 for i in payload["items"] if i["status"] == "found")
+    return {
+        "doc_type": payload["doc_type"]["type"],
+        "items_total": sum(1 for i in payload["items"] if i["selected"]),
+        "items_extracted": found,
+        "red_flags": len(payload["red_flags"]),
+        "rules_version": payload["rules_version"],
+    }
+
+
+async def _run_extract_llm(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    store: CheckpointStore,
+    api_key: str | None,
+    emit: ProgressSink,
+) -> dict[str, Any]:
+    """LLM 校验模式（TR-10.6/10.7/10.8）：预热 → 并发校验 → 全文审计。
+
+    失败抛异常由调用方标记 extract:llm error（不阻塞整跑 PARSED）。
+    """
+    with factory() as session:
+        kv = ConfigKVRepository(session)
+        base_url = kv.get_value("system", "llm.base_url")
+        model = kv.get_value("system", "llm.model")
+    if not api_key:
+        raise ParseError("已启用 LLM 校验模式，但未提供 API Key（请在模型配置中保存后重试）")
+    if not base_url or not model:
+        raise ParseError("已启用 LLM 校验模式，但模型配置不完整（base_url/model 未设置）")
+
+    extract_path = paths.extract_list_path(enterprise_id, project_id)
+    payload = _read_json(extract_path, None)
+    if payload is None:
+        raise ParseError("规则粗分结果缺失，请先从 extract:coarse 重试")
+
+    full_markdown = _full_markdown_from_store(store, enterprise_id, project_id)
+    items = payload["items"]
+    selected = [i for i in items if i.get("selected")]
+
+    # BP-10：先单跑"项目概述"预热缓存，再并发其余项
+    overview = next((i for i in selected if i["key"] == "project_overview"), None)
+    if overview is not None:
+        snippet = overview["matches"][0]["snippet"] if overview["matches"] else ""
+        warm = await asyncio.to_thread(
+            llm_validate.validate_item,
+            overview["key"],
+            overview["label"],
+            full_markdown,
+            snippet,
+            base_url,
+            model,
+            api_key,
+            factory,
+            project_id,
+        )
+        overview["llm"] = warm
+        emit(
+            {
+                "stage": "progress",
+                "percent": _W_EXTRACT_END + 1,
+                "message": "LLM 缓存预热完成（项目概述），并发校验其余项…",
+            }
+        )
+        await asyncio.sleep(_LLM_CACHE_WARMUP_WAIT)
+
+    others = [i for i in selected if i["key"] != "project_overview"]
+    sem = asyncio.Semaphore(_LLM_CONCURRENCY)
+
+    async def _one(item: dict[str, Any]) -> None:
+        async with sem:
+            snippet = item["matches"][0]["snippet"] if item["matches"] else ""
+            item["llm"] = await asyncio.to_thread(
+                llm_validate.validate_item,
+                item["key"],
+                item["label"],
+                full_markdown,
+                snippet,
+                base_url,
+                model,
+                api_key,
+                factory,
+                project_id,
+            )
+
+    if others:
+        await asyncio.gather(*(_one(i) for i in others))
+
+    # TR-10.7：全文摘要审计（大类数量比对查漏）
+    audit = await asyncio.to_thread(
+        llm_validate.audit_gap, full_markdown, items, base_url, model, api_key, factory, project_id
+    )
+
+    payload["llm"] = {
+        "enabled": True,
+        "mode": parse_config.LLM_VALIDATE,
+        "status": "done",
+        "validated": len(selected),
+        "audit": audit,
+    }
+    _write_json(extract_path, payload)
+    return {"validated": len(selected), "audit_status": audit["status"]}
 
 
 def _safe_transition(
@@ -757,6 +1038,20 @@ def _merge_chapters(eid: str, pid: str, source_stem: str, result: dict[str, Any]
 # ---------- 状态查询 ----------
 
 
+def _extract_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    items = payload.get("items") or []
+    selected = [i for i in items if i.get("selected")]
+    return {
+        "doc_type": payload.get("doc_type", {}).get("type"),
+        "items_total": len(selected),
+        "items_extracted": sum(1 for i in selected if i.get("status") == "found"),
+        "red_flags": len(payload.get("red_flags", [])),
+        "llm": payload.get("llm"),
+    }
+
+
 def get_status(
     factory: sessionmaker[Session],
     enterprise_id: str,
@@ -781,6 +1076,9 @@ def get_status(
         "sources": _read_json(_sources_path(enterprise_id, project_id), {"files": []}),
         "dedupe": _read_json(_dedupe_path(enterprise_id, project_id), None),
         "chapters": _read_json(_chapters_path(enterprise_id, project_id), None),
+        "extraction": _extract_summary(
+            _read_json(paths.extract_list_path(enterprise_id, project_id), None)
+        ),
         "checkpoint": checkpoint,
     }
 
@@ -788,10 +1086,12 @@ def get_status(
 def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
     """单项重试：重置 checkpoint 项并按依赖级联清除下游产物。
 
-    - mineru:<k>     → 同时重置 chapters:<k>
-    - dedupe-verify  → 重置全部 preprocess（work PDF 可能已被改名）+ 删 mineru/chapters
-    - preprocess:<f> → 删 verify/mineru/chapters（指纹与解析输入可能变化）
+    - mineru:<k>     → 同时重置 chapters:<k> + extract 项（要素层依赖章节）
+    - chapters:<k>   → 重置 extract 项
+    - dedupe-verify  → 重置全部 preprocess（work PDF 可能已被改名）+ 删 mineru/chapters/extract
+    - preprocess:<f> → 删 verify/mineru/chapters/extract（指纹与解析输入可能变化）
     - dedupe         → 以上全部（分组计划可能变化）
+    - extract:coarse → 连带重置 extract:llm（校验依赖粗分结果）
     """
     ckpt_path = paths.checkpoints_dir(enterprise_id, project_id) / f"{JOB_TYPE}.json"
     if not ckpt_path.is_file():
@@ -809,22 +1109,45 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
         for key in [k for k in list(store.items) if k.startswith(prefixes)]:
             store.delete(key)
 
-    if item.startswith("mineru:"):
-        store.reset(f"chapters:{item.split(':', 1)[1]}")
-    elif item.startswith("chapters:"):
+    def _reset_extract() -> None:
+        for key in ("extract:coarse", "extract:llm"):
+            if key in store.items:
+                store.reset(key)
+        stale = paths.extract_list_path(enterprise_id, project_id)
+        if stale.is_file():
+            stale.unlink()
+
+    if item == "extract:coarse":
+        if "extract:llm" in store.items:
+            store.reset("extract:llm")
+        for key in ("extract:coarse", "extract:llm"):
+            if key in store.items:
+                store.reset(key)
+        _p = paths.extract_list_path(enterprise_id, project_id)
+        if _p.is_file():
+            _p.unlink()
+    elif item == "extract:llm":
         pass
+    elif item.startswith("mineru:"):
+        store.reset(f"chapters:{item.split(':', 1)[1]}")
+        _reset_extract()
+    elif item.startswith("chapters:"):
+        _reset_extract()
     elif item == "dedupe-verify":
         for key in [k for k in store.items if k.startswith("preprocess:")]:
             store.reset(key)
         _delete_all(("mineru:", "chapters:"))
+        _reset_extract()
     elif item.startswith("preprocess:"):
         store.reset("dedupe-verify")
         _delete_all(("mineru:", "chapters:"))
+        _reset_extract()
     elif item == "dedupe":
         store.reset("dedupe-verify")
         for key in [k for k in store.items if k.startswith("preprocess:")]:
             store.reset(key)
         _delete_all(("mineru:", "chapters:"))
+        _reset_extract()
     store.reset(item)
 
     # 上游重来时，汇总报告与章节总表作废（重跑后重新生成）

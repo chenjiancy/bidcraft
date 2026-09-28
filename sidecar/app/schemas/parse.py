@@ -17,9 +17,14 @@ class RegisterSourcesIn(BaseModel):
 
 
 class ParseStartIn(BaseModel):
-    """启动（或断点续跑）解析；当前只支持默认路径，无 LLM 开关（Task 9/10 落地）。"""
+    """启动（或断点续跑）解析。
+
+    api_key：LLM 校验模式（Task 10）的云端 Key，由前端从 DPAPI 取出临时传入，
+    不落库、不落日志；纯规则路径无需传入。
+    """
 
     reparse: bool = False  # True：忽略已有 success 项全部重跑（谨慎，清 checkpoint）
+    api_key: str | None = Field(default=None, max_length=200)
 
 
 class ParseRetryIn(BaseModel):
@@ -45,6 +50,8 @@ class ParseStatusOut(BaseModel):
     checkpoint: dict[str, Any] | None = None
     chapters: dict[str, Any] | None = None
     dedupe: dict[str, Any] | None = None
+    # Task 10：extract_list.json 摘要（doc_type/items 统计/red_flags/llm 状态）
+    extraction: dict[str, Any] | None = None
 
 
 # ---------- Task 9：解析配置 ----------
