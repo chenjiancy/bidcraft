@@ -15,6 +15,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+# MinerU 独立重依赖环境（Task 8：torch/paddle 数 GB，不随 sidecar 主 venv 入库）
+.venv-mineru/
 *.egg-info/
 sidecar/dist/
 sidecar/build/

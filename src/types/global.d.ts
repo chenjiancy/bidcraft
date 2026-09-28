@@ -32,6 +32,9 @@ export interface BidAPI {
     ) => Promise<ProgressEvent>
     cancelTask: (taskId: string) => Promise<unknown>
   }
+  dialog: {
+    openBidFiles: () => Promise<Array<{ name: string; path: string }>>
+  }
   cred: {
     setApiKey: (apiKey: string) => Promise<{ success: boolean }>
     getApiKey: () => Promise<string | null>

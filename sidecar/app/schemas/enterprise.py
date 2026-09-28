@@ -68,6 +68,7 @@ class ProjectOut(BaseModel):
     code: str | None
     agent: str
     status: str
+    parse_status: str = "INIT"
     model_config = ConfigDict(from_attributes=True)
 
 

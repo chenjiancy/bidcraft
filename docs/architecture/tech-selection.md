@@ -132,5 +132,9 @@
 
 1. ✅ 总体方案采纳 **A（Electron + React + TS + Python sidecar）**——已落盘 spec.md/架构/tasks.md。
 2. ✅ UI 组件库选定 **Ant Design 5**——已写入 spec.md 约束与 tasks.md Task 1。
-3. ⏳ MinerU 版本锁定：决策已确认为"开发时确定（3.x 稳定版 vs 4.0 新版）"——记入 spec.md 待解决问题 TS-2，开发 Task 8 前定版。
+3. ✅ MinerU 版本锁定（TS-2，2026-09-28 Task 8 启动时定版，用户拍板）：**锁定 `mineru==3.4.5`（3.4 系列末版，pipeline 后端内置 PP-OCRv6）**。
+   - 选 3.4.5 理由：① pipeline 后端内置 PP-OCRv6，与 spec FR-2/Task 8"扫描件走内置 OCR"明文一致；② CLI（`mineru -p/-o/-m auto/-b pipeline`）支持文字版/扫描件自动分流，统一输出 Markdown + JSON（含页码坐标 bbox）；③ `.doc` 需经 LibreOffice 预转、`.docx/.pdf` 直进，与 Task 8 既定设计逐条吻合；④ 许可证为 Apache-2.0 系自定义许可（3.1 起）；⑤ 3.4 发布逾 3 个月、5 个补丁，稳定性优于刚发布的 4.x。
+   - 不选 4.0.x 的理由：4.0 改为四档 tier（Flash/Basic/Standard/Advanced）+ doclib 文档库 + DocVortex 原生 Office 解析，与 tasks.md 至少三处设计冲突（`.doc` 预转路径、CLI/输出契约、无文档库模式）；选 4.0 须先走需求变更改 spec/tasks，且新版 breaking 风险高。升级 4.x 留待后续迭代评估。
+   - 集成形态（用户拍板）：**独立 venv + CLI 子进程**。MinerU 重依赖（torch/paddle 数 GB）装入独立环境（开发期 `sidecar/.venv-mineru/`，gitignore；最终随安装包独立分发运行时），不入 sidecar 主 venv（uv.lock/CI/PyInstaller 不受影响）；sidecar 经 asyncio 子进程调用 CLI，路径可配置，未安装时明确报错不静默。
+   - GPU：本机 RTX 3060 Ti 8GB（Ampere），按官方 FAQ 安装 CUDA 版 torch/torchvision（cu128），pipeline 后端 GPU 加速；模型经 `mineru-models-download`（ModelScope 源）下载 pipeline 模型。
 4. ✅ 后续路径：已输出架构设计文档（architecture.md，含第十/十一章 dev/prod 隔离 + 发布更新）并填充 tasks.md（Task 1-7 + 1.1/1.2 概要）。

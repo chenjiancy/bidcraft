@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { join } from 'node:path'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { basename, join } from 'node:path'
 import { isTerminalStage, parseSSE, type ProgressEvent } from './lib/sse'
 import {
   getSidecarHandle,
@@ -126,6 +126,10 @@ function registerSidecarIpc(): void {
           throw new Error(`sidecar 流建立失败 HTTP ${resp.status}: ${await resp.text()}`)
         }
 
+        // 先把任务 ID 作为元事件下发，供渲染端调用取消（body 首条 SSE 之前）
+        const taskId = resp.headers.get('x-task-id')
+        if (taskId) send({ stage: 'meta', percent: 0, message: '', extra: { taskId } })
+
         let last: ProgressEvent | null = null
         for await (const progress of parseSSE(resp)) {
           last = progress
@@ -168,6 +172,18 @@ app.whenReady().then(() => {
     // 白名单：仅允许查询 userData，杜绝任意路径探测
     if (name !== 'userData') throw new Error(`未授权的路径: ${name}`)
     return app.getPath('userData')
+  })
+
+  // 本机招标文件选择：sidecar 与 Electron 同机，直接回传绝对路径入库
+  ipcMain.handle('dialog:openBidFiles', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择招标文件',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '招标文件 (PDF/Word)', extensions: ['pdf', 'doc', 'docx'] }],
+    })
+    if (result.canceled) return []
+    return result.filePaths.map((path) => ({ name: basename(path), path }))
   })
 
   registerSidecarIpc()

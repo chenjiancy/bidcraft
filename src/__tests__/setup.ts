@@ -31,10 +31,28 @@ window.bid = {
         return Promise.resolve({ confirmed: false })
       if (route.includes('/model-config'))
         return Promise.resolve({ provider: null, base_url: null, model: null })
+      if (route.endsWith('/parse/engine'))
+        return Promise.resolve({
+          available: true,
+          cuda_available: true,
+          libreoffice_available: true,
+        })
+      if (route.endsWith('/parse/status'))
+        return Promise.resolve({
+          parse_status: 'INIT',
+          running: false,
+          sources: {},
+          checkpoint: null,
+          chapters: null,
+          dedupe: null,
+        })
       return Promise.resolve([])
     },
     stream: () => Promise.resolve({ stage: 'completed', percent: 100, message: '' }),
     cancelTask: () => Promise.resolve({}),
+  },
+  dialog: {
+    openBidFiles: () => Promise.resolve([]),
   },
   cred: {
     setApiKey: () => Promise.resolve({ success: true }),

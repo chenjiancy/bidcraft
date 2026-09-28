@@ -1,5 +1,5 @@
-import { screen, waitFor } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderApp, resetAppStore } from './utils'
 import { useAppStore } from '../stores/useAppStore'
 
@@ -16,39 +16,41 @@ describe('Task 7: Walking Skeleton 端到端', () => {
     expect(screen.getByRole('menuitem', { name: '标书检查' })).toHaveClass('ant-menu-item-disabled')
   })
 
-  it('TR-7.1: 选项目→模拟确认→商务标解锁', async () => {
+  it('TR-7.1: 选项目→登记招标文件→解析完成→商务标解锁（Task 8 真实链路）', async () => {
     // 直接设置当前企业和项目（模拟已选项目状态）
     useAppStore.getState().setCurrentEnterprise({ id: 'ent-1', name: '测试企业', agent: '张三' })
     useAppStore.getState().setCurrentProject({ id: 'proj-1', name: '测试项目', agent: '张三' })
 
+    // 文件对话框返回一个本机文件；sidecar.stream mock 直接返回 completed
+    vi.spyOn(window.bid.dialog, 'openBidFiles').mockResolvedValue([
+      { name: '招标文件.pdf', path: 'C:/fake/招标文件.pdf' },
+    ])
+
     renderApp('/parse')
 
-    // 1. 解析页显示文件上传区
-    expect(await screen.findByText(/点击或拖拽招标文件到此处/)).toBeInTheDocument()
-
-    // 2. 商务标制作仍置灰
+    // 1. 解析页加载完成（引擎探针 + 状态查询），商务标制作仍置灰
+    const pickBtn = await screen.findByRole('button', { name: /选择招标文件/ })
     expect(screen.getByRole('menuitem', { name: '商务标制作' })).toHaveClass(
       'ant-menu-item-disabled',
     )
 
-    // 3. 模拟确认按钮初始禁用（未上传文件）
-    const confirmBtn = screen.getByRole('button', { name: /模拟确认解析清单/ })
-    expect(confirmBtn).toBeDisabled()
+    // 2. 选择本机招标文件
+    fireEvent.click(pickBtn)
+    expect(await screen.findByText('招标文件.pdf')).toBeInTheDocument()
 
-    // 4. 模拟确认（直接设置状态，实际 UI 需先上传文件）
-    useAppStore.getState().setParseConfirmed(true)
+    // 3. 登记并开始解析（mock SSE 立即 completed）
+    fireEvent.click(screen.getByRole('button', { name: /登记并开始解析/ }))
 
-    // 5. 商务标制作菜单应解锁（等待重新渲染）
+    // 4. 解析完成后门禁解锁：商务标制作 / 标书检查菜单可用
     await waitFor(() => {
       expect(screen.getByRole('menuitem', { name: '商务标制作' })).not.toHaveClass(
         'ant-menu-item-disabled',
       )
     })
-
-    // 6. 标书检查菜单也应解锁
     expect(screen.getByRole('menuitem', { name: '标书检查' })).not.toHaveClass(
       'ant-menu-item-disabled',
     )
+    expect(useAppStore.getState().isParseConfirmed).toBe(true)
   })
 
   it('切换项目时重置解析确认状态', () => {
