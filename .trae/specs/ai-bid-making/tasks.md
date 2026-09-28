@@ -98,7 +98,7 @@
   - `rule` TR-6.2: 一次测试调用在 llm_call_log 有记录（数据库记录为证）。
 
 ## Task 7: Walking Skeleton 端到端验收
-- **Status**: pending
+- **Status**: done（2026-09-28 合并，PR #26，TR-7.1/7.2 满足）
 - **Priority**: high
 - **Depends On**: Task 6
 - **Description**:
