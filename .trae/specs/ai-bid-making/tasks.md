@@ -49,7 +49,7 @@
   - `rule` TR-2.2: 1366×768 与 4K 缩放下布局不错乱（截图为证）。
 
 ## Task 3: Python Sidecar 进程管理与通信骨架
-- **Status**: pending
+- **Status**: done（2026-09-28 合并，PR #17，TR-3.1～3.3 全部满足）
 - **Priority**: high
 - **Depends On**: Task 2
 - **Description**:
