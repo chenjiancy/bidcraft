@@ -23,6 +23,7 @@ import {
 } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getApiKey } from '../../api/modelConfig'
 import {
   cancelParseTask,
   getEngineStatus,
@@ -34,9 +35,10 @@ import {
   updateParseConfig,
   type CheckpointItem,
   type EngineStatus,
-  type LlmMode,
   type LocalSourceFile,
+  type LlmMode,
   type ParseConfig,
+  type ParseConfigSaveResult,
   type ParseEvent,
   type ParseStatus,
 } from '../../api/parse'
@@ -74,6 +76,7 @@ export default function ParsePage() {
   const [llmEnabled, setLlmEnabled] = useState(false)
   const [llmMode, setLlmMode] = useState<LlmMode>('validate')
   const [reparseHint, setReparseHint] = useState(false)
+  const [affectedItems, setAffectedItems] = useState<string[]>([])
 
   const eid = currentEnterprise?.id ?? ''
   const pid = currentProject?.id ?? ''
@@ -176,15 +179,36 @@ export default function ParsePage() {
     })
   }
 
-  /** 保存解析配置（TR-9.3/9.4）；返回是否需要重新解析 */
-  const saveConfig = async (): Promise<boolean> => {
+  /** 保存解析配置（TR-9.3/9.4）；返回保存结果（含受影响 checkpoint 项） */
+  const saveConfig = async (): Promise<ParseConfigSaveResult> => {
     const result = await updateParseConfig(eid, pid, [...selected], llmEnabled, llmMode)
     applyConfig(result.config)
     if (Object.keys(result.changes).length > 0) {
       antdMessage.success('解析配置已保存')
     }
     setReparseHint(result.reparse_required)
-    return result.reparse_required
+    setAffectedItems(result.affected_items)
+    return result
+  }
+
+  /** 解析前取 API Key：LLM 开启时缺失则阻断（TR-10.6 前置校验） */
+  const resolveApiKey = async (): Promise<string | null> => {
+    if (!llmEnabled) return null
+    const key = await getApiKey()
+    if (!key) {
+      antdMessage.warning('已启用 LLM 辅助，请先在「模型配置」中设置 API Key 后再开始解析')
+      return null
+    }
+    return key
+  }
+
+  /** 重置受影响要素项（PARSED 后配置变更）；返回是否已重置 */
+  const resetAffected = async (keys: string[]): Promise<boolean> => {
+    for (const key of keys) {
+      await retryParseItem(eid, pid, key)
+    }
+    if (keys.length > 0) setAffectedItems([])
+    return keys.length > 0
   }
 
   const handleProgress = (event: ParseEvent): void => {
@@ -198,17 +222,18 @@ export default function ParsePage() {
     setStatusMsg(event.message)
   }
 
-  const runStream = async (reparse = false): Promise<void> => {
+  const runStream = async (reparse = false, apiKey: string | null = null): Promise<void> => {
     setPhase('running')
     setPercent(0)
     setStatusMsg('启动解析任务…')
     setTaskId(null)
-    const terminal = await startParse(eid, pid, reparse, handleProgress)
+    const terminal = await startParse(eid, pid, reparse, handleProgress, apiKey)
     await refreshStatus()
     if (terminal.stage === 'completed') {
       setPhase('completed')
       setParseConfirmed(true)
       setReparseHint(false)
+      setAffectedItems([])
       antdMessage.success('招标文件解析完成')
     } else if (terminal.stage === 'cancelled') {
       setPhase('cancelled')
@@ -222,7 +247,22 @@ export default function ParsePage() {
   const reparseAll = async (): Promise<void> => {
     setBusy(true)
     try {
-      await runStream(true)
+      const apiKey = await resolveApiKey()
+      if (llmEnabled && !apiKey) return
+      await runStream(true, apiKey)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** 配置变更后的定向重跑：仅重置受影响要素项，物理层不动（TR-10.9） */
+  const reparseAffected = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const apiKey = await resolveApiKey()
+      if (llmEnabled && !apiKey) return
+      await resetAffected(affectedItems)
+      await runStream(false, apiKey)
     } finally {
       setBusy(false)
     }
@@ -231,16 +271,20 @@ export default function ParsePage() {
   const start = async (): Promise<void> => {
     setBusy(true)
     try {
+      const apiKey = await resolveApiKey()
+      if (llmEnabled && !apiKey) return
       // 解析前先落库配置（FR-2：上传 → 配置 → 解析）
       if (config && configDirty) {
         setStatusMsg('保存解析配置…')
-        await saveConfig()
+        const saved = await saveConfig()
+        // PARSED 后变更：重置受影响要素项，避免续跑跳过导致产物过期
+        if (saved.reparse_required) await resetAffected(saved.affected_items)
       }
       if (files.length > 0) {
         setStatusMsg('登记招标文件…')
         await registerSources(eid, pid, files)
       }
-      await runStream(false)
+      await runStream(false, apiKey)
     } catch (err) {
       setPhase('failed')
       antdMessage.error(err instanceof Error ? err.message : String(err))
@@ -273,8 +317,10 @@ export default function ParsePage() {
   const retryItem = async (item: CheckpointItem): Promise<void> => {
     setBusy(true)
     try {
+      const apiKey = await resolveApiKey()
+      if (llmEnabled && !apiKey) return
       await retryParseItem(eid, pid, item.key)
-      await runStream(false)
+      await runStream(false, apiKey)
     } catch (err) {
       antdMessage.error(err instanceof Error ? err.message : String(err))
     } finally {
@@ -416,13 +462,13 @@ export default function ParsePage() {
                     onChange={(e) => setLlmMode(e.target.value as LlmMode)}
                     options={[
                       { value: 'validate', label: '校验模式' },
-                      { value: 'dual_channel', label: '双通道模式' },
+                      { value: 'dual_channel', label: '双通道模式（后续迭代）', disabled: true },
                     ]}
                     optionType="button"
                     buttonStyle="solid"
                   />
                   <Text type="secondary">
-                    默认关闭（纯确定性解析，无 LLM）；开启后二选一，双通道模式将在后续版本提供
+                    默认关闭（纯规则解析，无 LLM）；开启后当前仅支持校验模式，双通道模式后续迭代提供
                   </Text>
                 </Space>
 
@@ -454,22 +500,27 @@ export default function ParsePage() {
             </Space>
           )}
 
-          {/* 配置变更提示（TR-9.4：PARSED 后改配置需重新解析生效） */}
+          {/* 配置变更提示（TR-9.4：PARSED 后改配置需重新解析生效；Task 10 定向重跑要素项） */}
           {phase !== 'running' && reparseHint && (
             <Alert
               type="warning"
               showIcon
               message="解析配置已变更，需重新解析后在提取结果中生效"
-              description="物理解析结果（章节/OCR）不受影响；重新解析将对要素提取应用新配置。"
+              description="物理解析结果（章节/OCR）不受影响；仅重新运行受影响的要素提取项。"
               action={
-                <Button
-                  size="small"
-                  type="primary"
-                  loading={busy}
-                  onClick={() => void reparseAll()}
-                >
-                  重新解析全部
-                </Button>
+                <Space>
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={busy}
+                    onClick={() => void reparseAffected()}
+                  >
+                    重新解析受影响项
+                  </Button>
+                  <Button size="small" loading={busy} onClick={() => void reparseAll()}>
+                    全部重跑
+                  </Button>
+                </Space>
               }
             />
           )}
@@ -562,6 +613,34 @@ export default function ParsePage() {
                 </List.Item>
               )}
             />
+          )}
+
+          {/* 要素提取摘要（Task 10：规则粗分 + LLM 校验结果概览） */}
+          {phase === 'completed' && status?.extraction && (
+            <Card size="small" title="要素提取摘要">
+              <Space wrap size="middle">
+                <Text>
+                  文档类型：<Tag color="blue">{status.extraction.doc_type ?? '未知'}</Tag>
+                </Text>
+                <Text>
+                  勾选要素：{status.extraction.items_total} 项，成功提取{' '}
+                  {status.extraction.items_extracted} 项
+                </Text>
+                <Text>
+                  风险提示：
+                  {status.extraction.red_flags > 0 ? (
+                    <Tag color="error">{status.extraction.red_flags} 项</Tag>
+                  ) : (
+                    <Tag color="success">无</Tag>
+                  )}
+                </Text>
+                {status.extraction.llm && (
+                  <Text>
+                    LLM 校验：<Tag>{String(status.extraction.llm.status ?? 'not_run')}</Tag>
+                  </Text>
+                )}
+              </Space>
+            </Card>
           )}
 
           {/* 门禁状态 */}

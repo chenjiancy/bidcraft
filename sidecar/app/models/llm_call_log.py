@@ -25,6 +25,8 @@ class LLMCallLog(Base):
     model: Mapped[str] = mapped_column(String(100), nullable=False)
     tokens_in: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tokens_out: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # BP-10 提示词缓存命中量（usage.prompt_tokens_details.cached_tokens），供成本审计
+    cached_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

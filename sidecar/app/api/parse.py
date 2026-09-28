@@ -129,6 +129,7 @@ async def parse_start(
             task_id,
             reparse=body.reparse,
             emit=emit,
+            api_key=body.api_key,
         )
 
     try:
@@ -223,8 +224,9 @@ def update_parse_config(
     - 解析任务运行中拒绝（409）；
     - 关键项取消/未知项/模式非法拒绝（400）；
     - 实际发生变更写 app_event（parse_config_change，TR-9.4 操作日志）；
-    - PARSED 后变更返回 reparse_required=true（物理层 checkpoint 不受影响，
-      affected_items 在 Task 9 恒空；Task 10 要素提取项落地后接单项重试）。
+    - PARSED 后变更返回 reparse_required=true（物理层 checkpoint 不受影响；
+      affected_items 为 Task 10 要素提取项 extract:coarse/extract:llm，
+      前端据此做单项重试而非整跑）。
     """
     try:
         project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
@@ -252,6 +254,16 @@ def update_parse_config(
         session.commit()
 
     affected = list(parse_config_mod.affected_checkpoint_items(changes))
+    # 与 checkpoint 实有项求交（extract:llm 仅在校验模式注册过才存在）
+    if affected:
+        ckpt_path = service.paths.checkpoints_dir(enterprise_id, project_id) / (
+            f"{service.JOB_TYPE}.json"
+        )
+        if ckpt_path.is_file():
+            store = service.CheckpointStore.load_or_create(ckpt_path, service.JOB_TYPE, {})
+            affected = [k for k in affected if k in store.items]
+        else:
+            affected = []
     reparse_required = bool(changes) and project.parse_status == parse_state.PARSED
     return ParseConfigSavedOut(
         config=_config_to_out(new_cfg, is_default=False),

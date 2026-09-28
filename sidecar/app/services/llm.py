@@ -29,6 +29,20 @@ class TestConnectionResult:
     error: str | None = None
 
 
+@dataclass
+class ChatResult:
+    __test__ = False
+    success: bool
+    content: str
+    tokens_in: int | None
+    tokens_out: int | None
+    cached_tokens: int | None
+    error: str | None = None
+
+
+# ---------- test_connection（已有，供模型配置测试连通性） ----------
+
+
 def test_connection(
     base_url: str,
     model: str,
@@ -85,6 +99,72 @@ def test_connection(
         )
 
 
+# ---------- chat_completion（Task 10，供解析校验模式调用） ----------
+
+
+def chat_completion(
+    base_url: str,
+    model: str,
+    api_key: str,
+    messages: list[dict[str, str]],
+    session: Session,
+    project_id: str | None = None,
+) -> ChatResult:
+    """通用 chat completion，同步阻塞（由调用方 asyncio.to_thread 包异步层）。"""
+    url = f"{base_url.rstrip('/')}/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {"model": model, "messages": messages, "max_tokens": 2048}
+
+    start = time.monotonic()
+    try:
+        resp = httpx.post(url, json=payload, headers=headers, timeout=120.0)
+        duration_ms = int((time.monotonic() - start) * 1000)
+        resp.raise_for_status()
+        data = resp.json()
+
+        content = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        tokens_in = usage.get("prompt_tokens")
+        tokens_out = usage.get("completion_tokens")
+        cached_tokens: int | None = None
+        ptd = usage.get("prompt_tokens_details")
+        if isinstance(ptd, dict):
+            cached_tokens = ptd.get("cached_tokens")
+
+        _log_call(
+            session,
+            model,
+            tokens_in,
+            tokens_out,
+            duration_ms,
+            project_id,
+            cached_tokens=cached_tokens,
+        )
+
+        return ChatResult(
+            success=True,
+            content=content,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            cached_tokens=cached_tokens,
+        )
+    except Exception as exc:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        error_msg = str(exc)
+        _log_call(session, model, None, None, duration_ms, project_id, error=error_msg)
+        return ChatResult(
+            success=False,
+            content="",
+            tokens_in=None,
+            tokens_out=None,
+            cached_tokens=None,
+            error=error_msg,
+        )
+
+
+# ---------- 日志 ----------
+
+
 def _log_call(
     session: Session,
     model: str,
@@ -93,12 +173,14 @@ def _log_call(
     duration_ms: int,
     project_id: str | None,
     error: str | None = None,
+    cached_tokens: int | None = None,
 ) -> None:
     """记录 LLM 调用日志（不含 API Key）。"""
     log = LLMCallLog(
         model=model,
         tokens_in=tokens_in,
         tokens_out=tokens_out,
+        cached_tokens=cached_tokens,
         duration_ms=duration_ms,
         project_id=project_id,
     )

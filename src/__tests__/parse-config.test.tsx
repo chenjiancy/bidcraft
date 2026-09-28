@@ -28,7 +28,12 @@ const OPTIONAL_LABELS = [
 
 /** 按 setup.ts 默认规则构造可定制的 call mock */
 function makeCallMock(
-  opts: { status?: string; putResult?: Record<string, unknown> } = {},
+  opts: {
+    status?: string
+    putResult?: Record<string, unknown>
+    checkpoint?: Record<string, unknown> | null
+    extraction?: Record<string, unknown> | null
+  } = {},
 ): ReturnType<typeof vi.fn> {
   return vi.fn((route: string, payload?: unknown, method?: string) => {
     if (route.endsWith('/parse/engine'))
@@ -38,9 +43,10 @@ function makeCallMock(
         parse_status: opts.status ?? 'INIT',
         running: false,
         sources: {},
-        checkpoint: null,
+        checkpoint: opts.checkpoint ?? null,
         chapters: null,
         dedupe: null,
+        extraction: opts.extraction ?? null,
       })
     if (route.endsWith('/parse/config') && method === 'PUT') {
       const p = (payload ?? {}) as { selected?: string[]; llm_enabled?: boolean; llm_mode?: string }
@@ -84,7 +90,12 @@ function makeCallMock(
 }
 
 async function renderParsePage(
-  opts: { status?: string; putResult?: Record<string, unknown> } = {},
+  opts: {
+    status?: string
+    putResult?: Record<string, unknown>
+    checkpoint?: Record<string, unknown> | null
+    extraction?: Record<string, unknown> | null
+  } = {},
 ) {
   const callMock = makeCallMock(opts)
   vi.spyOn(window.bid.sidecar, 'call').mockImplementation(callMock as never)
@@ -116,21 +127,20 @@ describe('Task 9: 解析配置面板', () => {
     }
   })
 
-  it('TR-9.2: LLM 总开关默认关闭，模式置灰；开启后可选校验/双通道', async () => {
+  it('TR-9.2/TR-10.9: LLM 总开关默认关闭，模式置灰；开启后可选校验，双通道恒禁用', async () => {
     await renderParsePage()
 
     const llmSwitch = screen.getByRole('switch', { name: '启用 LLM 辅助' })
     expect(llmSwitch).not.toBeChecked()
     const validateRadio = screen.getByRole('radio', { name: '校验模式' })
-    const dualRadio = screen.getByRole('radio', { name: '双通道模式' })
+    const dualRadio = screen.getByRole('radio', { name: /双通道模式/ })
     expect(validateRadio).toBeDisabled()
     expect(dualRadio).toBeDisabled()
 
     fireEvent.click(llmSwitch)
     await waitFor(() => expect(validateRadio).not.toBeDisabled())
-    expect(dualRadio).not.toBeDisabled()
-    fireEvent.click(dualRadio)
-    expect(dualRadio).toBeChecked()
+    // TR-10.9：双通道本期不实现，开关打开后仍禁用
+    expect(dualRadio).toBeDisabled()
   })
 
   it('TR-9.3: 勾选其他项保存后以 PUT 落库（关键项必带、LLM 默认关）', async () => {
@@ -153,7 +163,7 @@ describe('Task 9: 解析配置面板', () => {
     expect(payload.selected).toContain('投标保证金')
   })
 
-  it('TR-9.4: PARSED 后保存变更提示重新解析，点击触发 reparse', async () => {
+  it('TR-9.4: PARSED 后保存变更提示重新解析，点击全部重跑触发 reparse', async () => {
     const callMock = await renderParsePage({
       status: 'PARSED',
       putResult: {
@@ -182,7 +192,7 @@ describe('Task 9: 解析配置面板', () => {
 
     await screen.findByText(/解析配置已变更，需重新解析/)
     // 注：按钮 loading 图标的 aria-label 会改变可访问名，改用文本定位规避
-    fireEvent.click(screen.getByText('重新解析全部').closest('button')!)
+    fireEvent.click(screen.getByText('全部重跑').closest('button')!)
 
     await waitFor(() => {
       expect(streamMock).toHaveBeenCalledTimes(1)
@@ -191,5 +201,95 @@ describe('Task 9: 解析配置面板', () => {
     expect(route).toContain('/parse/start')
     expect(body).toMatchObject({ reparse: true })
     expect(callMock).toBeDefined()
+  })
+
+  it('TR-10.x: 配置变更后定向重跑仅重置受影响项（不触发 reparse=true）', async () => {
+    const callMock = await renderParsePage({
+      status: 'PARSED',
+      putResult: {
+        config: {
+          is_default: false,
+          items: [...REQUIRED_LABELS, ...OPTIONAL_LABELS].map((label, i) => ({
+            key: label,
+            label,
+            required: i < REQUIRED_LABELS.length,
+            selected: i < REQUIRED_LABELS.length || label === '投标保证金',
+          })),
+          llm_enabled: false,
+          llm_mode: 'validate',
+        },
+        reparse_required: true,
+        changes: { selected_added: ['bid_bond'] },
+        affected_items: ['extract:coarse'],
+      },
+    })
+    const streamMock = vi
+      .spyOn(window.bid.sidecar, 'stream')
+      .mockResolvedValue({ stage: 'completed', percent: 100, message: '' })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '投标保证金' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存配置' }))
+
+    await screen.findByText(/解析配置已变更，需重新解析/)
+    fireEvent.click(screen.getByText('重新解析受影响项').closest('button')!)
+
+    // 先逐项 retry，再续跑（reparse=false）
+    await waitFor(() => {
+      const retryCalls = callMock.mock.calls.filter(
+        ([route]) => typeof route === 'string' && route.endsWith('/parse/retry'),
+      )
+      expect(retryCalls).toHaveLength(1)
+      expect(retryCalls[0][1]).toEqual({ item: 'extract:coarse' })
+    })
+    await waitFor(() => expect(streamMock).toHaveBeenCalledTimes(1))
+    const [, body] = streamMock.mock.calls[0]
+    expect(body).toMatchObject({ reparse: false })
+  })
+
+  it('TR-10.6: LLM 开启但无 API Key 时阻断解析并提示', async () => {
+    await renderParsePage({
+      status: 'PARSED',
+      checkpoint: {
+        job_type: 'document_parse',
+        state: 'success',
+        counts: { success: 1 },
+        updated_at: '2026-09-29',
+        items: [
+          { key: 'extract:coarse', label: '要素提取', state: 'success', attempts: 1, error: null },
+        ],
+      },
+    })
+    const streamMock = vi.spyOn(window.bid.sidecar, 'stream')
+
+    fireEvent.click(screen.getByRole('switch', { name: '启用 LLM 辅助' }))
+    await waitFor(() => expect(screen.getByRole('radio', { name: '校验模式' })).not.toBeDisabled())
+
+    // setup.ts cred.getApiKey 默认返回 null → 应阻断
+    const startBtn = screen
+      .getAllByRole('button')
+      .find((b) => /开始解析|从断点继续解析/.test(b.textContent ?? ''))
+    expect(startBtn).toBeDefined()
+    fireEvent.click(startBtn!)
+
+    await screen.findByText(/已启用 LLM 辅助，请先在「模型配置」中设置 API Key/)
+    expect(streamMock).not.toHaveBeenCalled()
+  })
+
+  it('TR-10.1/10.4: PARSED 完成面板展示要素提取摘要', async () => {
+    await renderParsePage({
+      status: 'PARSED',
+      extraction: {
+        doc_type: '招标',
+        items_total: 9,
+        items_extracted: 7,
+        red_flags: 2,
+        llm: { enabled: true, mode: 'validate', status: 'done' },
+      },
+    })
+    await screen.findByText('要素提取摘要')
+    expect(screen.getByText('招标')).toBeInTheDocument()
+    expect(screen.getByText(/勾选要素：/)).toHaveTextContent('勾选要素：9 项，成功提取 7 项')
+    expect(screen.getByText('2 项')).toBeInTheDocument()
+    expect(screen.getByText('done')).toBeInTheDocument()
   })
 })

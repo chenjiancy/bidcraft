@@ -8,10 +8,9 @@
 - ``affected_checkpoint_items`` 建立"配置差异 → 受影响 checkpoint 项"映射，
   供配置变更后的单项重试（TR-9.4）。
 
-TR-9.4 时序说明：Task 9 阶段 checkpoint 只含物理解析项
-（dedupe/preprocess/mineru/chapters），它们不消费本配置——勾选要素或
-LLM 开关变化不应重跑 OCR。要素提取 checkpoint 项在 Task 10 建立后，
-本映射扩展为对应 item key，前端提示自动从"重新解析全部"切换为"单项重试"。
+Task 10 起：物理解析项（dedupe/preprocess/mineru/chapters）不消费本配置，
+勾选要素或 LLM 开关变化不重跑 OCR；要素提取项 extract:coarse（恒有）与
+extract:llm（校验模式）消费本配置，配置差异映射到这两项做单项重试。
 """
 
 from __future__ import annotations
@@ -161,12 +160,12 @@ def diff_configs(old: ParseConfig, new: ParseConfig) -> dict[str, Any]:
 def affected_checkpoint_items(changes: dict[str, Any]) -> tuple[str, ...]:
     """配置差异 → 需重置的 checkpoint item key（TR-9.4，复用单项重试）。
 
-    Task 9：物理解析项（dedupe/preprocess/mineru/chapters）不消费本配置，
-    故当前版本恒返回空元组——配置变化不重跑 OCR；调用方据此提示
-    "重新解析全部（要素层将使用新配置）"。Task 10 建立要素提取项后，
-    在此把 selected_added/removed/llm_* 映射到对应 extract:* item key，
-    且永远不得返回物理层 item（dedupe/preprocess:/mineru:/chapters:）。
+    Task 10 起：要素提取项（extract:coarse 恒有；extract:llm 仅校验模式）
+    消费本配置——勾选项或 LLM 开关/模式变化都需要重置它们以单项重试。
+    物理层项（dedupe/preprocess:/mineru:/chapters:）不消费本配置，
+    本函数永远不得返回物理层 item key。
     """
     if not changes:
         return ()
-    return ()
+    # 任何配置差异都影响要素层：勾选差异改变提取集合，LLM 差异改变校验行为
+    return ("extract:coarse", "extract:llm")

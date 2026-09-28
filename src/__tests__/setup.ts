@@ -89,6 +89,7 @@ window.bid = {
           checkpoint: null,
           chapters: null,
           dedupe: null,
+          extraction: null,
         })
       if (route.endsWith('/parse/config')) {
         const base = defaultParseConfig()
