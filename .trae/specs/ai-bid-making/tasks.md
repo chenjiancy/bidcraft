@@ -72,7 +72,7 @@
   - `rule` TR-4.2: pytest 覆盖跨企业/跨项目读取被拦截（测试结果为证）。
 
 ## Task 5: 企业/项目管理最小功能
-- **Status**: pending
+- **Status**: done（2026-09-28 合并，PR #22，TR-5.1～5.3 全部满足）
 - **Priority**: high
 - **Depends On**: Task 4
 - **Description**:
