@@ -18,11 +18,11 @@
 - [x] 1.1/1.2 概要任务已列出（进入前细化）
 - [x] 数据隔离在仓储层与测试中有设计落点
 - [x] 测试金字塔分层策略已确认（EM-6：静态分析/单元30%/集成50%/E2E20% + 5项专项测试 + CI分层触发矩阵）
-- [x] dev/prod 环境隔离方案已确认（BidCraft-dev / BidCraftApp + VITE_DEV_SERVER_URL 检测 + --data-root 传 sidecar）
+- [x] dev/prod 环境隔离方案已确认（BidCraft-dev / BidCraftApp + ELECTRON_RENDERER_URL 检测 + BIDCRAFT_DATA_ROOT 传 sidecar）
 - [x] 发布/自动更新/反馈闭环方案已确认（NFR-7：electron-updater + GitHub Releases + 当前阶段日志/Issue手动闭环 + 分发阶段Sentry）
 
 ## 实施阶段检查（阶段 1.0 Walking Skeleton）
-- [ ] Task 1：独立 Python 环境与 Electron 骨架就绪（TR-1.1/1.2）
+- [x] Task 1：独立 Python 环境与 Electron 骨架就绪（TR-1.1～1.8 全部满足，PR #13）
 - [ ] Task 2：应用外壳、导航、明暗主题、置灰门禁（TR-2.1/2.2）
 - [ ] Task 3：Sidecar 进程管理、IPC、SSE、127.0.0.1 限定（TR-3.1/3.2/3.3）
 - [ ] Task 4：SQLite 迁移与隔离仓储（TR-4.1/4.2）
@@ -30,8 +30,8 @@
 - [ ] Task 6：模型配置、DPAPI、连通性、调用日志（TR-6.1/6.2）
 - [ ] Task 7：端到端走通 + 置灰门禁验证（TR-7.1/7.2）
 - 纪律复核：
-  - [ ] 每 Task 完成即报告、用户确认后提交、再进下一项
-  - [ ] 任何测试问题与基座异常已披露，无静默/杜撰
+  - [x] 每 Task 完成即报告、用户确认后提交、再进下一项（Task 1 已遵守）
+  - [x] 任何测试问题与基座异常已披露，无静默/杜撰（Task 1 已遵守）
 
 ## 验收阶段检查
 - [ ] 阶段 1.0 验收标准（AC）已定义并全部满足
@@ -40,8 +40,8 @@
 - [ ] 确定性回归测试（商务标）已跑绿（固定输入→固定输出比对）
 - [ ] 状态机测试已跑绿（合法/非法转换 + 断点恢复）
 - [ ] LLM 模式测试已跑绿（默认关断言 + mock 校验/双通道）
-- [ ] CI 分层触发矩阵已实现（分支跑单元+集成，PR 跑全部含E2E+黄金样本）
-- [ ] dev/prod userData 目录隔离已实现（BidCraft-dev / BidCraftApp，互不污染）
+- [x] CI 分层触发矩阵已实现（分支跑单元+集成，PR 跑全部含E2E+黄金样本；PR #13 实证）
+- [x] dev/prod userData 目录隔离已实现（BidCraft-dev / BidCraftApp，互不污染）
 - [ ] 本机全部测试为绿（规则 9）
 
 ## 发布前检查
