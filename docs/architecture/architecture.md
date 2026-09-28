@@ -287,16 +287,24 @@ app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp');
 ```typescript
 // electron/sidecar.ts
 const dataRoot = app.getPath('userData');
-// 注意：uvicorn CLI 不接受 --data-root，dev 仅经环境变量传递；
-//       --data-root 供打包后的 exe（argparse）使用
-const sidecarCmd = isDev
-  ? ['uv', 'run', 'uvicorn', 'app.main:app']
-  : [sidecarExePath, '--data-root', dataRoot];
-const child = spawn(sidecarCmd[0], sidecarCmd.slice(1), {
+// 未打包运行：直接启动 .venv 内的 uvicorn（不经 shell/cmd，child.pid 即真实进程，
+//   进程树可整树结束，避免 cmd 先退导致 uv/python 孤儿）；
+// 打包后：PyInstaller exe，--data-root 供 argparse 使用
+const runner = isDev
+  ? join(sidecarDir, '.venv', 'Scripts', 'uvicorn.exe')
+  : sidecarExePath;
+const child = spawn(runner, isDev
+  ? ['app.main:app', '--host', '127.0.0.1', '--port', String(port)]
+  : ['--data-root', dataRoot], {
   cwd: isDev ? sidecarDir : undefined,
-  shell: isDev && process.platform === 'win32',  // Windows 下 uv 为 uv.cmd
-  env: { ...process.env, BIDCRAFT_DATA_ROOT: dataRoot },  // 环境变量兜底
+  env: {
+    ...process.env,
+    BIDCRAFT_DATA_ROOT: dataRoot,      // 环境变量兜底（uvicorn CLI 不接受 --data-root）
+    BIDCRAFT_SIDECAR_TOKEN: token,     // 本地令牌鉴权
+  },
 });
+// 退出：before-quit 中 preventDefault，await stopSidecar()（Windows 经
+// taskkill /T /F 并等待结束）后再 app.quit()
 ```
 
 ### 10.3 Sidecar 接收数据根目录

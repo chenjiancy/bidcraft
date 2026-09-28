@@ -5,6 +5,37 @@ const api = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
     getUserDataPath: (): Promise<string> => ipcRenderer.invoke('app:getPath', 'userData'),
   },
+  sidecar: {
+    /** 查询 Python 健康状态（含 Main 侧状态机与实际 /health 响应） */
+    health: (): Promise<unknown> => ipcRenderer.invoke('sidecar:health'),
+    /** 统一转发到 sidecar（带本地令牌）；无 payload 走 GET，有 payload 走 POST */
+    call: (route: string, payload?: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('sidecar:call', route, payload),
+    /**
+     * 订阅 SSE 进度流。
+     * @param onProgress 每条事件（含终态）回调
+     * @returns 终态事件
+     */
+    stream: async (
+      route: string,
+      payload: unknown,
+      onProgress: (event: unknown) => void,
+    ): Promise<unknown> => {
+      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const channel = 'sidecar:stream:event'
+      const listener = (_event: unknown, id: string, event: unknown): void => {
+        if (id === requestId) onProgress(event)
+      }
+      ipcRenderer.on(channel, listener)
+      try {
+        return await ipcRenderer.invoke('sidecar:stream', requestId, route, payload)
+      } finally {
+        ipcRenderer.removeListener(channel, listener)
+      }
+    },
+    /** 请求取消异步任务 */
+    cancelTask: (taskId: string): Promise<unknown> => ipcRenderer.invoke('task:cancel', taskId),
+  },
 }
 
 if (process.contextIsolated) {

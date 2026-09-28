@@ -2,10 +2,35 @@
  * Renderer 全局类型声明。
  * 注意：与 electron/preload.ts 中 BidAPI 保持同步。
  */
+
+export interface ProgressEvent {
+  stage: string
+  percent: number
+  message: string
+  extra?: Record<string, unknown>
+}
+
+export interface SidecarHealthResult {
+  status: 'starting' | 'healthy' | 'crashed' | 'stopped'
+  port?: number
+  health?: { status: string }
+  error?: string
+}
+
 export interface BidAPI {
   app: {
     getVersion: () => Promise<string>
     getUserDataPath: () => Promise<string>
+  }
+  sidecar: {
+    health: () => Promise<SidecarHealthResult>
+    call: (route: string, payload?: unknown) => Promise<unknown>
+    stream: (
+      route: string,
+      payload: unknown,
+      onProgress: (event: ProgressEvent) => void,
+    ) => Promise<ProgressEvent>
+    cancelTask: (taskId: string) => Promise<unknown>
   }
 }
 
