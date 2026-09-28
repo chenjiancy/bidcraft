@@ -25,8 +25,8 @@ describe('应用外壳与导航', () => {
     expect(screen.getByText('系统配置（占位）')).toBeInTheDocument()
 
     await user.click(screen.getByRole('menuitem', { name: '招标文件解析' }))
-    // 用页面独有描述断言（菜单中也有"招标文件解析"文字）
-    expect(await screen.findByText(/PDF \/ Word \/ 扫描件上传/)).toBeInTheDocument()
+    // 未选项目时解析页提示先选择项目
+    expect(await screen.findByText(/请先选择企业和项目/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('menuitem', { name: '企业/项目' }))
     expect(await screen.findByRole('button', { name: /新建企业/ })).toBeInTheDocument()
