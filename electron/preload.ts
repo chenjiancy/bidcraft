@@ -8,9 +8,13 @@ const api = {
   sidecar: {
     /** 查询 Python 健康状态（含 Main 侧状态机与实际 /health 响应） */
     health: (): Promise<unknown> => ipcRenderer.invoke('sidecar:health'),
-    /** 统一转发到 sidecar（带本地令牌）；无 payload 走 GET，有 payload 走 POST */
-    call: (route: string, payload?: unknown): Promise<unknown> =>
-      ipcRenderer.invoke('sidecar:call', route, payload),
+    /**
+     * 统一转发到 sidecar（带本地令牌）。
+     * 未指定 method 时：有 payload 走 POST，无 payload 走 GET。
+     * 指定 method 时按 method 走（支持 PUT/PATCH/DELETE）。
+     */
+    call: (route: string, payload?: unknown, method?: string): Promise<unknown> =>
+      ipcRenderer.invoke('sidecar:call', route, payload, method),
     /**
      * 订阅 SSE 进度流。
      * @param onProgress 每条事件（含终态）回调

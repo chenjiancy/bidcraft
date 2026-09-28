@@ -2,11 +2,13 @@
 
 from fastapi import FastAPI
 
-from app.api import test_events
+from app.api import enterprises, recycle_bin, test_events
 
 app = FastAPI(title="BidCraft Sidecar", version="0.1.0")
 
 app.include_router(test_events.router)
+app.include_router(enterprises.router)
+app.include_router(recycle_bin.router)
 
 
 @app.get("/health")
