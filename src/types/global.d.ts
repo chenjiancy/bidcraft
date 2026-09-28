@@ -32,6 +32,12 @@ export interface BidAPI {
     ) => Promise<ProgressEvent>
     cancelTask: (taskId: string) => Promise<unknown>
   }
+  cred: {
+    setApiKey: (apiKey: string) => Promise<{ success: boolean }>
+    getApiKey: () => Promise<string | null>
+    hasApiKey: () => Promise<boolean>
+    clearApiKey: () => Promise<{ success: boolean }>
+  }
 }
 
 declare global {

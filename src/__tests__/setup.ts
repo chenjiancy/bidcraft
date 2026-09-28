@@ -17,7 +17,7 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 })
 
-// Electron preload API mock（jsdom 环境无 Electron；sidecar.call 默认返回空数组）
+// Electron preload API mock（jsdom 环境无 Electron；sidecar.call 按路由返回默认值）
 window.bid = {
   app: {
     getVersion: () => Promise.resolve('0.0.0'),
@@ -25,8 +25,21 @@ window.bid = {
   },
   sidecar: {
     health: () => Promise.resolve({ status: 'healthy' }),
-    call: () => Promise.resolve([]),
+    call: (route: string) => {
+      // 模型配置路由返回合理默认值
+      if (route.includes('/model-config/external-confirmed'))
+        return Promise.resolve({ confirmed: false })
+      if (route.includes('/model-config'))
+        return Promise.resolve({ provider: null, base_url: null, model: null })
+      return Promise.resolve([])
+    },
     stream: () => Promise.resolve({ stage: 'completed', percent: 100, message: '' }),
     cancelTask: () => Promise.resolve({}),
+  },
+  cred: {
+    setApiKey: () => Promise.resolve({ success: true }),
+    getApiKey: () => Promise.resolve(null),
+    hasApiKey: () => Promise.resolve(false),
+    clearApiKey: () => Promise.resolve({ success: true }),
   },
 } as unknown as BidAPI

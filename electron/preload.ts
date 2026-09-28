@@ -40,6 +40,17 @@ const api = {
     /** 请求取消异步任务 */
     cancelTask: (taskId: string): Promise<unknown> => ipcRenderer.invoke('task:cancel', taskId),
   },
+  cred: {
+    /** 保存 API Key（DPAPI 加密存储） */
+    setApiKey: (apiKey: string): Promise<{ success: boolean }> =>
+      ipcRenderer.invoke('cred:setApiKey', apiKey),
+    /** 读取 API Key（DPAPI 解密） */
+    getApiKey: (): Promise<string | null> => ipcRenderer.invoke('cred:getApiKey'),
+    /** 检查是否已设置 API Key */
+    hasApiKey: (): Promise<boolean> => ipcRenderer.invoke('cred:hasApiKey'),
+    /** 清除 API Key */
+    clearApiKey: (): Promise<{ success: boolean }> => ipcRenderer.invoke('cred:clearApiKey'),
+  },
 }
 
 if (process.contextIsolated) {
