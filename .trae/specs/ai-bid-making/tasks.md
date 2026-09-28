@@ -111,6 +111,13 @@
 - **Notes**: 本任务完成标志 1.0 结束。
 
 ## 阶段 1.1：招标文件解析（概要，进入前细化）
+> **借鉴点参考**（详见 [yibiao-borrowing.md](file:///e:/bidcraft/bidcraft-master/docs/references/yibiao-borrowing.md)）：
+> - BP-1 长任务 Checkpoint（高）：解析多项任务独立 checkpoint，断点续跑、单项重试。
+> - BP-3 Schema 硬校验（高）：score_table.json 等核心产物结构校验，阶段交接门禁。
+> - BP-4 确定性与语义分工（高）：规则库前置做机械检查，LLM 仅做语义判断。
+> - BP-10 提示词缓存预热（低）：LLM 可选路径多项调用时缓存预热降成本。
+> 进入本阶段细化时，将上述借鉴点拆解为对应 Task 的 TR。
+
 - Task 8: PDF/Word 文本与结构解析（MinerU 文字版提取 + 页码坐标/bbox + 表格；输出 Markdown/JSON；含 .doc 经 LibreOffice headless 预处理、整份合并单文件章节切分、同名多格式去重，与 spec.md FR-2 一致）
 - Task 9: 扫描件 OCR（MinerU 内置 PP-OCRv6 自动触发）与素材 OCR 文本落库
 - Task 10: 解析配置（8 关键项 + 可选项；解析方式/高精度开关）
@@ -120,6 +127,18 @@
 - Task 14: 解析清单 UI（逐条确认/增删、标红）+ 门禁解锁
 
 ## 阶段 1.2：商务标生成（概要，进入前细化）
+> **借鉴点参考**（详见 [yibiao-borrowing.md](file:///e:/bidcraft/bidcraft-master/docs/references/yibiao-borrowing.md)）：
+> - BP-1 长任务 Checkpoint（高）：逐章渲染等长任务断点续跑。
+> - BP-2 导出占位+警告清单（高）：渲染输出时不静默，缺失项占位+清单披露。
+> - BP-3 Schema 硬校验（高）：模板比对等阶段交接门禁。
+> - BP-4 确定性与语义分工（高）：模板比对机械检查 vs 语义判断分工。
+> - BP-5 渲染计划（中）：渲染前生成结构化填充计划，用户确认后执行。
+> - BP-6 图片闭环（中）：占位→匹配→缩放→不跨页→缺失披露全链路。
+> - BP-7 一致性审计（中）：渲染后规则库扫描术语/信息一致性。
+> - BP-8 FTS5 检索（中）：素材库查询用 SQLite FTS5 全文检索。
+> - BP-9 三级素材管理+历史复用（低）：素材三级组织+历史清单复用。
+> 进入本阶段细化时，将上述借鉴点拆解为对应 Task 的 TR。
+
 - Task 15: 素材库管理（层级/命名规范、动态词典、归档、版本快照）
 - Task 16: 素材提取清单（查询匹配、2-3 轮循环收敛）
 - Task 17: 模板库管理（目录组织、模板编辑器、template.json、版本）
