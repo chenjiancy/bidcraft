@@ -135,6 +135,15 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+        working-directory: sidecar
+
       - name: Build
         run: npm run build
 
