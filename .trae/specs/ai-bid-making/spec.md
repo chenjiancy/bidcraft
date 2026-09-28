@@ -380,10 +380,35 @@
 - **日志查看**：软件内置日志查看/导出入口。
 - **数据完整性**：所有清单文件支持结构校验；文件损坏时明确报错，绝不静默忽略。
 
+### NFR-7 发布、自动更新与反馈闭环
+> 2026-09-28 经联网调研（electron-builder 官方文档、Electron 官方教程、Sentry 官方文档）后确认。
+
+1. **自动更新机制**
+   - 方案：electron-builder + electron-updater + GitHub Releases（当前最成熟路径，免费且与现有仓库集成）。
+   - 更新方式：pull 式——客户端启动时 `checkForUpdatesAndNotify()` 轮询 GitHub Releases，发现新版后台下载、`quitAndInstall()` 重启。
+   - 差异更新：Windows NSIS 原生支持 blockmap 块哈希，只传变化块，省 70-80% 流量。
+   - Python sidecar 随 Electron 主包整体替换（通过 `extraResources` 打入 NSIS），不做 sidecar 独立差分——全量替换最简单可靠。sidecar 与 Electron 版本号绑定同步发布，避免 IPC/API 不兼容。
+
+2. **CI/CD 发布流程**
+   - GitHub Actions 构建 → `electron-builder --publish always` → 上传 NSIS 包 + `latest.yml` + `.blockmap` 到 GitHub Releases。
+   - 打 `v*` 版本标签触发构建出包。
+
+3. **生产→开发反馈闭环**
+   - 当前阶段（个人使用）：electron-log 本地日志（NFR-6）+ 应用内"报告问题"按钮（附带日志）+ GitHub Issues 手动闭环。
+   - 分发阶段：引入 `@sentry/electron`（自动捕获 JS 异常 + 原生 Minidump 崩溃）→ GitHub Issue → 分支修复 → PR 合并 → tag 触发出包 → electron-updater 推送 → Sentry 验证复现。
+   - 闭环路径：Sentry/日志 → GitHub Issue → feature 分支 → PR → 合并 → tag → Actions 出包 → electron-updater → 生产验证。
+
+4. **分阶段实施**
+   - Task 1：dev/prod userData 目录分离 + electron-updater 框架集成（可暂不启用自动更新）。
+   - 阶段 1.0 验收后：CI 加入 `electron-builder --publish always`，打 tag 即出包。
+   - 实际使用阶段：启用 `checkForUpdatesAndNotify` + 应用内"报告问题"按钮。
+   - 分发阶段：引入 Sentry 自动错误上报。
+
 ## 约束
 - **技术约束**:
   - 技术栈已确认（2026-09-28）：Electron + React + TypeScript + Ant Design 5 前端；Python FastAPI sidecar（MinerU 内置 OCR、docxtpl、LiteLLM）；SQLite。详见 [tech-selection.md](file:///e:/bidcraft/bidcraft-master/docs/architecture/tech-selection.md)。
   - 开发前需准备独立 Python 运行环境（现有系统 Python 已损坏）：开发用独立 venv/嵌入版，最终经 PyInstaller 打包，用户机器无需安装 Python。
+  - **dev/prod 环境隔离（2026-09-28 确认）**：开发环境 userData 为 `%AppData%\BidCraft-dev`，生产环境为 `%AppData%\BidCraftApp`（不用 `BidCraft`，避免与仓库上层目录同名混淆）。环境检测用 `VITE_DEV_SERVER_URL`。数据根目录通过命令行参数 `--data-root` + 环境变量 `BIDCRAFT_DATA_ROOT` 传给 sidecar。详见 [architecture.md 第十章](file:///e:/bidcraft/bidcraft-master/docs/architecture/architecture.md)。
 - **业务约束**:
   - **数据隔离模型（企业—项目两级）**：本期即按此模型实现，属基本功能。一个用户可创建多个企业；企业与企业之间数据完全隔离——进入某企业后只能访问该企业数据，只能在该企业内创建项目。同一企业内，项目与项目之间相互隔离。同一企业内的素材库、模板库共享（不随项目隔离），企业之间不共享。本期仅一个用户，暂不实现多用户/权限管理，预留扩展。
 - **依赖项**: （待补充）
