@@ -20,11 +20,7 @@ env:
 
 # E2E / 黄金样本触发条件（EM-6 矩阵）：
 # PR、main 推送、v* 标签触发；feature/fix 分支推送不触发
-run-on-pr-or-release: &run-on-pr-or-release
-  if: >-
-    github.event_name == 'pull_request' ||
-    github.ref == 'refs/heads/main' ||
-    startsWith(github.ref, 'refs/tags/v')
+# （if 条件直接写在 e2e / golden job 上）
 
 jobs:
   lint:
@@ -122,7 +118,10 @@ jobs:
   e2e:
     name: E2E Smoke (Electron)
     needs: integration
-    <<: *run-on-pr-or-release
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
@@ -145,7 +144,10 @@ jobs:
   golden:
     name: Golden Sample Regression
     needs: integration
-    <<: *run-on-pr-or-release
+    if: >-
+      github.event_name == 'pull_request' ||
+      github.ref == 'refs/heads/main' ||
+      startsWith(github.ref, 'refs/tags/v')
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
