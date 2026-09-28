@@ -91,10 +91,9 @@ bidcraft-master/
 │   │   ├── main.py
 │   │   ├── api/                 # 路由（parse/material/template/render/...）
 │   │   ├── services/            # 业务逻辑
-│   │   │   ├── parser_pdf.py    # PyMuPDF
-│   │   │   ├── parser_docx.py   # python-docx
-│   │   │   ├── ocr.py           # PaddleOCR
-│   │   │   ├── llm.py           # LiteLLM 网关
+│   │   │   ├── mineru_client.py # MinerU 解析引擎（PDF/Word/扫描件/OCR 一体化）
+│   │   │   ├── parser_docx.py   # python-docx（模板比对用）
+│   │   │   ├── llm.py           # LiteLLM 网关（可选，默认关）
 │   │   │   ├── rules/           # 规则库（EM-3，可单测）
 │   │   │   ├── render.py        # docxtpl
 │   │   │   ├── compare.py       # 语义比对
