@@ -262,3 +262,160 @@ e2e/                        # Playwright E2E
 ```
 
 测试基础设施（Vitest + pytest 配置、CI 分层 job、示例测试）在 Task 1 搭建。
+
+## 十、dev/prod 环境隔离
+
+> 2026-09-28 确认。Electron 默认 dev/prod 共享 userData 路径，会互相污染数据（开发测试数据混入生产标书，或生产标书被调试破坏）。对本案（标书数据是核心资产，规则 7 数据完整性）是灾难性的，必须在 Task 1 就处理。
+
+### 10.1 环境检测
+
+electron-vite 在开发模式下设置 `VITE_DEV_SERVER_URL`，比 `NODE_ENV` 更可靠：
+
+```typescript
+// electron/main.ts（必须在 app.whenReady() 之前调用）
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
+app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp');
+// app.getPath('userData') 自动返回:
+//   dev  → %AppData%\BidCraft-dev
+//   prod → %AppData%\BidCraftApp
+```
+
+生产环境目录名不用 `BidCraft`（与仓库上层目录 `e:\bidcraft` 同名易混淆）。
+
+### 10.2 数据根目录传给 sidecar
+
+```typescript
+// electron/sidecar.ts
+const dataRoot = app.getPath('userData');
+const sidecarCmd = isDev
+  ? ['python', '-m', 'uvicorn', 'app.main:app', '--data-root', dataRoot]
+  : [sidecarExePath, '--data-root', dataRoot];
+const child = spawn(sidecarCmd[0], sidecarCmd.slice(1), {
+  env: { ...process.env, BIDCRAFT_DATA_ROOT: dataRoot },  // 环境变量兜底
+});
+```
+
+### 10.3 Sidecar 接收数据根目录
+
+```python
+# sidecar/app/core/config.py
+import os
+from pathlib import Path
+DATA_ROOT = Path(args.data_root or os.environ.get('BIDCRAFT_DATA_ROOT'))
+DB_PATH = DATA_ROOT / 'bidcraft.db'
+CONFIG_DIR = DATA_ROOT / 'config'
+LOG_DIR = DATA_ROOT / 'logs'
+```
+
+### 10.4 API Key 隔离
+
+```typescript
+// electron/cred.ts
+const service = isDev ? 'BidCraft-dev' : 'BidCraftApp';
+// keytar 按(service, account)存储，dev/prod 自然隔离
+await keytar.setPassword(service, 'llm-api-key', encryptedKey);
+```
+
+### 10.5 目录结构对比
+
+```
+%AppData%/
+├── BidCraft-dev/              ← 开发环境
+│   ├── config/
+│   │   ├── system.json
+│   │   └── keywords.dict.json
+│   ├── enterprises/
+│   │   └── <enterprise_id>/...
+│   ├── bidcraft.db
+│   └── logs/
+│
+└── BidCraftApp/               ← 生产环境
+    ├── config/
+    ├── enterprises/
+    ├── bidcraft.db
+    └── logs/
+```
+
+样本文件（`samples/`、`samples-local/`）在仓库内，是只读输入，不涉及 userData，不与 dev/prod 数据冲突。
+
+### 10.6 开发环境重置脚本
+
+```json
+// package.json scripts
+{
+  "reset:dev": "node scripts/reset-dev.js"
+}
+```
+
+删除 `%AppData%\BidCraft-dev\`，清空开发数据，用于开发迭代时从头来过。
+
+### 10.7 CI 测试环境
+
+GitHub Actions runner 用临时路径（如 `%RUNNER_TEMP%\BidCraft-test`），不与 dev/prod 冲突。CI 中通过环境变量 `BIDCRAFT_DATA_ROOT` 指定。
+
+## 十一、发布与自动更新
+
+> 需求详见 [spec.md NFR-7](file:///e:/bidcraft/bidcraft-master/.trae/specs/ai-bid-making/spec.md)。本节记录架构层面的落点。
+
+### 11.1 自动更新架构
+
+```
+GitHub Releases (latest.yml + NSIS.exe + .blockmap)
+        ↑                                    ↓
+  CI 构建(tag 触发)                    客户端启动轮询
+                                        ↓
+                              electron-updater 比对版本
+                                        ↓
+                              差异下载(blockmap) → quitAndInstall
+```
+
+- **electron-updater 集成**：Main 进程 `autoUpdater.setFeedURL({ provider: 'github', owner: 'chenjiancy', repo: 'bidcraft' })`；`autoUpdater.checkForUpdatesAndNotify()`。
+- **Python sidecar 更新**：通过 `extraResources` 打入 NSIS，随主包整体替换，不做独立差分。版本号与 Electron 绑定。
+- **更新选项**：`autoDownload: false`（手动确认）或 `true`（自动下载）；`oneClick: true`（NSIS 静默安装）。
+
+### 11.2 CI/CD 发布工作流
+
+```yaml
+# .github/workflows/release.yml（Task 1 产出 ci.yml 后补充）
+on:
+  push:
+    tags: ['v*']
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - # npm ci + uv sync
+      - # npm run build
+      - run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+### 11.3 生产→开发反馈闭环
+
+```
+生产环境问题
+    ↓
+electron-log 本地日志 + 应用内"报告问题"按钮
+    ↓
+GitHub Issue（附带日志/系统信息）
+    ↓
+feature 分支修复 → PR → 合并
+    ↓
+tag v* → CI 出包 → GitHub Releases
+    ↓
+electron-updater 推送到生产 → 验证复现
+```
+
+- **当前阶段**：electron-log（NFR-6）+ GitHub Issues 手动闭环。
+- **分发阶段**：引入 `@sentry/electron`（main + renderer 初始化），自动捕获 JS 异常 + 原生 Minidump 崩溃。
+
+### 11.4 分阶段实施
+
+| 阶段 | 实施项 |
+|---|---|
+| Task 1 | dev/prod userData 隔离（第十章）+ electron-updater 依赖安装 |
+| 阶段 1.0 验收后 | release.yml 工作流 + `electron-builder --publish always` |
+| 实际使用阶段 | 启用 `checkForUpdatesAndNotify` + 应用内"报告问题"按钮 |
+| 分发阶段 | Sentry 集成 |

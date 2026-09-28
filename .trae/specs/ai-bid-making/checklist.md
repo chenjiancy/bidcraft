@@ -18,6 +18,8 @@
 - [x] 1.1/1.2 概要任务已列出（进入前细化）
 - [x] 数据隔离在仓储层与测试中有设计落点
 - [x] 测试金字塔分层策略已确认（EM-6：静态分析/单元30%/集成50%/E2E20% + 5项专项测试 + CI分层触发矩阵）
+- [x] dev/prod 环境隔离方案已确认（BidCraft-dev / BidCraftApp + VITE_DEV_SERVER_URL 检测 + --data-root 传 sidecar）
+- [x] 发布/自动更新/反馈闭环方案已确认（NFR-7：electron-updater + GitHub Releases + 当前阶段日志/Issue手动闭环 + 分发阶段Sentry）
 
 ## 实施阶段检查（阶段 1.0 Walking Skeleton）
 - [ ] Task 1：独立 Python 环境与 Electron 骨架就绪（TR-1.1/1.2）
@@ -39,6 +41,7 @@
 - [ ] 状态机测试已跑绿（合法/非法转换 + 断点恢复）
 - [ ] LLM 模式测试已跑绿（默认关断言 + mock 校验/双通道）
 - [ ] CI 分层触发矩阵已实现（分支跑单元+集成，PR 跑全部含E2E+黄金样本）
+- [ ] dev/prod userData 目录隔离已实现（BidCraft-dev / BidCraftApp，互不污染）
 - [ ] 本机全部测试为绿（规则 9）
 
 ## 发布前检查
