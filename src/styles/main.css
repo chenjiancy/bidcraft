@@ -6,8 +6,28 @@
 @import 'tailwindcss/theme' layer(theme);
 @import 'tailwindcss/utilities' layer(utilities);
 
+/* Tailwind dark: variant 跟随根节点 data-theme（而非默认 prefers-color-scheme） */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
 html,
 body,
 #root {
   height: 100%;
+}
+
+/* ===== 主题 CSS 变量（与 AntD 算法同步切换） ===== */
+:root[data-theme='light'] {
+  --bc-text: rgba(0, 0, 0, 0.88);
+  --bc-sider-bg: #ffffff;
+  --bc-header-bg: #ffffff;
+  --bc-content-bg: #f0f2f5;
+  --bc-border: #f0f0f0;
+}
+
+:root[data-theme='dark'] {
+  --bc-text: rgba(255, 255, 255, 0.85);
+  --bc-sider-bg: #141414;
+  --bc-header-bg: #141414;
+  --bc-content-bg: #000000;
+  --bc-border: #303030;
 }
