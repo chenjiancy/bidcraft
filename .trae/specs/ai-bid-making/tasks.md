@@ -170,7 +170,7 @@
   - Task 9 是配置 UI，Task 8 是解析引擎；用户操作顺序为"上传→配置→解析"，开发顺序为"引擎→配置 UI"（先有引擎再建配置 UI）。
   - 原 tasks.md 概要中的"高精度开关"在 spec.md 中对应"LLM 总开关 + 模式选择"（FR-2 第 2 点），非独立开关；本任务统一术语为"LLM 总开关 + 模式选择"。
 ## Task 10: 规则粗分 + LLM 校验（默认路径 + 校验模式）
-- **Status**: pending
+- **Status**: done（PR #34，squash 合并 2026-09-29）
 - **Priority**: high
 - **Depends On**: Task 9
 - **Description**:
