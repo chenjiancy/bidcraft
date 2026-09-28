@@ -1,0 +1,81 @@
+{
+  "name": "bidcraft",
+  "version": "0.1.0",
+  "description": "AI标书制作",
+  "main": "out/main/main.js",
+  "author": "chenjiancy",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "sidecar:dev": "uv --directory sidecar run uvicorn app.main:app --host 127.0.0.1 --port 18765 --reload",
+    "build": "electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "lint:eslint": "eslint . --max-warnings=0",
+    "lint:ruff": "uv --directory sidecar run ruff check app tests",
+    "lint:mypy": "uv --directory sidecar run mypy app",
+    "lint": "npm run lint:eslint && npm run lint:ruff && npm run lint:mypy && npm run typecheck",
+    "format": "prettier --write . && uv --directory sidecar run ruff format app tests",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:py": "uv --directory sidecar run pytest",
+    "test:e2e": "npm run build && playwright test",
+    "test:samples": "uv --directory sidecar run pytest tests/golden",
+    "dist": "npm run build && electron-builder --win",
+    "reset:dev": "node scripts/reset-dev.js",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.{js,mjs,json,yml,yaml,css}": [
+      "prettier --write"
+    ],
+    "*.py": "node scripts/lint-python-staged.mjs"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "antd": "^5.29.3",
+    "electron-updater": "^6.8.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^26.6.3",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.12.0",
+    "husky": "^9.1.7",
+    "jsdom": "^30.1.1",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.9",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1",
+    "vite": "^7.3.6",
+    "vitest": "^5.0.2"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "electron-winstaller@5.4.0": true
+  }
+}

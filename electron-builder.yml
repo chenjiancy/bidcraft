@@ -1,0 +1,22 @@
+appId: cn.bidcraft.app
+productName: BidCraft
+copyright: Copyright © 2026
+directories:
+  buildResources: build
+  output: release
+files:
+  - out/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  oneClick: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+publish:
+  provider: github
+  owner: chenjiancy
+  repo: bidcraft

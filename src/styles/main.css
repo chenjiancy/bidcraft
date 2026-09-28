@@ -1,0 +1,13 @@
+/*
+ * Tailwind v4 按需引入：仅 theme + utilities，不引入 preflight（base 重置层），
+ * 避免与 Ant Design 5 的样式重置冲突。
+ */
+@layer theme, utilities;
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities);
+
+html,
+body,
+#root {
+  height: 100%;
+}

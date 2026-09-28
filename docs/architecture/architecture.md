@@ -269,11 +269,11 @@ e2e/                        # Playwright E2E
 
 ### 10.1 环境检测
 
-electron-vite 在开发模式下设置 `VITE_DEV_SERVER_URL`，比 `NODE_ENV` 更可靠：
+electron-vite 在开发模式下注入 `ELECTRON_RENDERER_URL`（electron-vite v5 实测；比 `NODE_ENV` 可靠）：
 
 ```typescript
 // electron/main.ts（必须在 app.whenReady() 之前调用）
-const isDev = !!process.env.VITE_DEV_SERVER_URL;
+const isDev = !!process.env.ELECTRON_RENDERER_URL;
 app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp');
 // app.getPath('userData') 自动返回:
 //   dev  → %AppData%\BidCraft-dev
@@ -287,10 +287,14 @@ app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp');
 ```typescript
 // electron/sidecar.ts
 const dataRoot = app.getPath('userData');
+// 注意：uvicorn CLI 不接受 --data-root，dev 仅经环境变量传递；
+//       --data-root 供打包后的 exe（argparse）使用
 const sidecarCmd = isDev
-  ? ['python', '-m', 'uvicorn', 'app.main:app', '--data-root', dataRoot]
+  ? ['uv', 'run', 'uvicorn', 'app.main:app']
   : [sidecarExePath, '--data-root', dataRoot];
 const child = spawn(sidecarCmd[0], sidecarCmd.slice(1), {
+  cwd: isDev ? sidecarDir : undefined,
+  shell: isDev && process.platform === 'win32',  // Windows 下 uv 为 uv.cmd
   env: { ...process.env, BIDCRAFT_DATA_ROOT: dataRoot },  // 环境变量兜底
 });
 ```
