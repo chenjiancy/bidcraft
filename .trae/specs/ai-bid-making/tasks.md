@@ -86,7 +86,7 @@
   - `rule` TR-5.3: 删除进入回收站而非物理删除（数据库状态为证）。
 
 ## Task 6: 模型配置与连通性
-- **Status**: pending
+- **Status**: done（2026-09-28 合并，PR #24，TR-6.1/6.2 满足）
 - **Priority**: high
 - **Depends On**: Task 5
 - **Description**:
