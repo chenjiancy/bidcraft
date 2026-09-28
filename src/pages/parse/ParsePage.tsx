@@ -3,31 +3,40 @@ import {
   FileSearchOutlined,
   FolderOpenOutlined,
   LoadingOutlined,
+  SettingOutlined,
   UndoOutlined,
 } from '@ant-design/icons'
 import {
   Alert,
   Button,
   Card,
+  Checkbox,
+  Divider,
   List,
   Progress,
+  Radio,
   Space,
+  Switch,
   Tag,
   Typography,
   message as antdMessage,
 } from 'antd'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   cancelParseTask,
   getEngineStatus,
+  getParseConfig,
   getParseStatus,
   registerSources,
   retryParseItem,
   startParse,
+  updateParseConfig,
   type CheckpointItem,
   type EngineStatus,
+  type LlmMode,
   type LocalSourceFile,
+  type ParseConfig,
   type ParseEvent,
   type ParseStatus,
 } from '../../api/parse'
@@ -60,9 +69,35 @@ export default function ParsePage() {
   const [statusMsg, setStatusMsg] = useState('')
   const [taskId, setTaskId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [config, setConfig] = useState<ParseConfig | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [llmEnabled, setLlmEnabled] = useState(false)
+  const [llmMode, setLlmMode] = useState<LlmMode>('validate')
+  const [reparseHint, setReparseHint] = useState(false)
 
   const eid = currentEnterprise?.id ?? ''
   const pid = currentProject?.id ?? ''
+
+  const requiredItems = useMemo(() => (config?.items ?? []).filter((i) => i.required), [config])
+  const optionalItems = useMemo(() => (config?.items ?? []).filter((i) => !i.required), [config])
+  const configDirty = useMemo(() => {
+    if (!config) return false
+    const sameSelection =
+      config.items.every((i) => selected.has(i.key) === i.selected) &&
+      selected.size === config.items.filter((i) => i.selected).length
+    return (
+      !sameSelection ||
+      llmEnabled !== config.llm_enabled ||
+      llmMode !== (config.llm_mode as LlmMode)
+    )
+  }, [config, selected, llmEnabled, llmMode])
+
+  const applyConfig = useCallback((c: ParseConfig) => {
+    setConfig(c)
+    setSelected(new Set(c.items.filter((i) => i.selected).map((i) => i.key)))
+    setLlmEnabled(c.llm_enabled)
+    setLlmMode((c.llm_mode as LlmMode) ?? 'validate')
+  }, [])
 
   const refreshStatus = useCallback(async () => {
     const s = await getParseStatus(eid, pid)
@@ -70,16 +105,21 @@ export default function ParsePage() {
     return s
   }, [eid, pid])
 
-  // 进入页面：引擎探针 + 已有解析状态（支持断点续跑/已完成门禁恢复）
+  // 进入页面：引擎探针 + 已有解析状态 + 项目解析配置
   useEffect(() => {
     if (!currentProject || !currentEnterprise) return
     let cancelled = false
     void (async () => {
       try {
-        const [eng, s] = await Promise.all([getEngineStatus(), getParseStatus(eid, pid)])
+        const [eng, s, cfg] = await Promise.all([
+          getEngineStatus(),
+          getParseStatus(eid, pid),
+          getParseConfig(eid, pid),
+        ])
         if (cancelled) return
         setEngine(eng)
         setStatus(s)
+        applyConfig(cfg)
         if (s.parse_status === 'PARSED') {
           setPhase('completed')
           setParseConfirmed(true)
@@ -97,7 +137,7 @@ export default function ParsePage() {
     return () => {
       cancelled = true
     }
-  }, [currentProject, currentEnterprise, eid, pid, setParseConfirmed])
+  }, [currentProject, currentEnterprise, eid, pid, setParseConfirmed, applyConfig])
 
   if (!currentProject || !currentEnterprise) {
     return (
@@ -127,6 +167,26 @@ export default function ParsePage() {
     })
   }
 
+  const toggleOptional = (key: string, checked: boolean): void => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  }
+
+  /** 保存解析配置（TR-9.3/9.4）；返回是否需要重新解析 */
+  const saveConfig = async (): Promise<boolean> => {
+    const result = await updateParseConfig(eid, pid, [...selected], llmEnabled, llmMode)
+    applyConfig(result.config)
+    if (Object.keys(result.changes).length > 0) {
+      antdMessage.success('解析配置已保存')
+    }
+    setReparseHint(result.reparse_required)
+    return result.reparse_required
+  }
+
   const handleProgress = (event: ParseEvent): void => {
     // IPC 元事件：仅携带任务 ID（供取消），不是 SSE 业务事件
     if (event.stage === 'meta') {
@@ -148,6 +208,7 @@ export default function ParsePage() {
     if (terminal.stage === 'completed') {
       setPhase('completed')
       setParseConfirmed(true)
+      setReparseHint(false)
       antdMessage.success('招标文件解析完成')
     } else if (terminal.stage === 'cancelled') {
       setPhase('cancelled')
@@ -170,6 +231,11 @@ export default function ParsePage() {
   const start = async (): Promise<void> => {
     setBusy(true)
     try {
+      // 解析前先落库配置（FR-2：上传 → 配置 → 解析）
+      if (config && configDirty) {
+        setStatusMsg('保存解析配置…')
+        await saveConfig()
+      }
       if (files.length > 0) {
         setStatusMsg('登记招标文件…')
         await registerSources(eid, pid, files)
@@ -177,6 +243,17 @@ export default function ParsePage() {
       await runStream(false)
     } catch (err) {
       setPhase('failed')
+      antdMessage.error(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const saveConfigClick = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await saveConfig()
+    } catch (err) {
       antdMessage.error(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
@@ -208,6 +285,7 @@ export default function ParsePage() {
   const errorItems = status?.checkpoint?.items.filter((i) => i.state === 'error') ?? []
   const hasProgress = (status?.checkpoint?.items.length ?? 0) > 0
   const engineReady = engine?.available === true
+  const configLocked = phase === 'running'
 
   return (
     <Space direction="vertical" size="middle" className="w-full">
@@ -281,12 +359,119 @@ export default function ParsePage() {
             </>
           )}
 
+          {/* 解析配置（Task 9，TR-9.1/9.2） */}
+          {config && phase !== 'loading' && (
+            <Card
+              size="small"
+              title={
+                <Space>
+                  <SettingOutlined />
+                  <span>解析配置</span>
+                </Space>
+              }
+            >
+              <Space direction="vertical" size="small" className="w-full">
+                <div>
+                  <Text strong>关键项（必选，不可取消）</Text>
+                  <div>
+                    {requiredItems.map((item) => (
+                      <Checkbox key={item.key} checked disabled className="mt-1 mr-2">
+                        {item.label}
+                      </Checkbox>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Text strong>其他项（按需勾选）</Text>
+                  <div>
+                    {optionalItems.map((item) => (
+                      <Checkbox
+                        key={item.key}
+                        checked={selected.has(item.key)}
+                        disabled={configLocked}
+                        onChange={(e) => toggleOptional(item.key, e.target.checked)}
+                        className="mt-1 mr-2"
+                      >
+                        {item.label}
+                      </Checkbox>
+                    ))}
+                  </div>
+                </div>
+
+                <Divider className="my-2" />
+
+                <Space align="start" wrap>
+                  <Space>
+                    <Switch
+                      checked={llmEnabled}
+                      disabled={configLocked}
+                      onChange={(v) => setLlmEnabled(v)}
+                      aria-label="启用 LLM 辅助"
+                    />
+                    <Text strong>启用 LLM 辅助</Text>
+                  </Space>
+                  <Radio.Group
+                    value={llmMode}
+                    disabled={!llmEnabled || configLocked}
+                    onChange={(e) => setLlmMode(e.target.value as LlmMode)}
+                    options={[
+                      { value: 'validate', label: '校验模式' },
+                      { value: 'dual_channel', label: '双通道模式' },
+                    ]}
+                    optionType="button"
+                    buttonStyle="solid"
+                  />
+                  <Text type="secondary">
+                    默认关闭（纯确定性解析，无 LLM）；开启后二选一，双通道模式将在后续版本提供
+                  </Text>
+                </Space>
+
+                <div>
+                  <Button
+                    size="small"
+                    type={configDirty ? 'primary' : 'default'}
+                    disabled={!configDirty || configLocked}
+                    loading={busy}
+                    onClick={() => void saveConfigClick()}
+                  >
+                    保存配置
+                  </Button>
+                  {config.is_default && !configDirty && (
+                    <Text type="secondary" className="ml-2">
+                      当前为默认配置，开始解析前将自动保存
+                    </Text>
+                  )}
+                </div>
+              </Space>
+            </Card>
+          )}
+
           {/* 进度区 */}
           {phase === 'running' && (
             <Space direction="vertical" size="small" className="w-full">
               <Progress percent={Math.round(percent)} status="active" />
               <Text type="secondary">{statusMsg || '准备中…'}</Text>
             </Space>
+          )}
+
+          {/* 配置变更提示（TR-9.4：PARSED 后改配置需重新解析生效） */}
+          {phase !== 'running' && reparseHint && (
+            <Alert
+              type="warning"
+              showIcon
+              message="解析配置已变更，需重新解析后在提取结果中生效"
+              description="物理解析结果（章节/OCR）不受影响；重新解析将对要素提取应用新配置。"
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  loading={busy}
+                  onClick={() => void reparseAll()}
+                >
+                  重新解析全部
+                </Button>
+              }
+            />
           )}
 
           {/* 失败项（TR-8.7 单项重试） */}
@@ -388,13 +573,21 @@ export default function ParsePage() {
               message="解析清单已确认（PARSE_CONFIRMED）"
               description="商务标制作与标书检查模块已解锁。"
               action={
-                <Button
-                  size="small"
-                  icon={<UndoOutlined />}
-                  onClick={() => setParseConfirmed(false)}
-                >
-                  重置门禁
-                </Button>
+                <Space>
+                  <Button size="small" type="primary" onClick={() => navigate('/bid')}>
+                    前往商务标制作
+                  </Button>
+                  <Button size="small" onClick={() => navigate('/check')}>
+                    前往标书检查
+                  </Button>
+                  <Button
+                    size="small"
+                    icon={<UndoOutlined />}
+                    onClick={() => setParseConfirmed(false)}
+                  >
+                    重置门禁
+                  </Button>
+                </Space>
               }
             />
           ) : phase !== 'running' ? (

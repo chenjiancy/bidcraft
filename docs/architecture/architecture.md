@@ -65,6 +65,8 @@ SSE 事件统一：`{stage, percent, message, extra?}`；终态 `completed`/`fai
 | POST | `.../parse/start` | 启动解析/断点续跑（SSE；响应头 `X-Task-Id`；body `{reparse?: bool}`） |
 | GET | `.../parse/status` | 状态机 + checkpoint + sources/dedupe/chapters 汇总 |
 | POST | `.../parse/retry` | 单项重试（body `{item: key|null}`，null=续跑未完成项） |
+| GET | `.../parse/config` | 项目解析配置（8 关键项必选 + 10 其他项 + LLM 开关/模式；无记录返回默认 `is_default=true`） |
+| PUT | `.../parse/config` | 保存解析配置（body `{selected[], llm_enabled, llm_mode}`；关键项缺失/未知项/模式非法 → 400，解析运行中 → 409；PARSED 后变更返回 `reparse_required=true` 并写 `parse_config_change` 事件） |
 | POST | `/tasks/{task_id}/cancel` | 取消运行中任务（复用通用任务取消通道） |
 
 实现说明：Main 进程在 SSE body 到达前先下发一条 IPC 元事件（`stage:'meta'`，`extra.taskId`）供渲染端取消；该事件不来自后端、不入库。
@@ -139,6 +141,7 @@ bidcraft-master/
 | `config_kv` | scope(system/enterprise), enterprise_id?, key, value | 配置（企业优先） |
 | `recycle_bin` | id, item_type, enterprise_id?, ref_id, deleted_at, purge_at | 两级回收站（项目/素材/模板均入企业内回收站；保留时长可配，默认 30 天） |
 | `app_event` | id, project_id?, type, payload, created_at | 状态转换/审计留痕 |
+| `parse_project_config` | id, project_id(FK, unique, CASCADE), payload(JSON), created_at, updated_at | 项目级解析配置（FR-2：18 要素项勾选 + LLM 总开关/模式；缺失时按默认配置） |
 
 隔离强制方式：所有业务查询默认带 `enterprise_id` / `project_id` 约束（仓储层统一注入 + 测试覆盖），杜绝跨企业/跨项目读取。
 

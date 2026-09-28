@@ -1,10 +1,4 @@
-import {
-  AuditOutlined,
-  BankOutlined,
-  FileSearchOutlined,
-  FileTextOutlined,
-  SettingOutlined,
-} from '@ant-design/icons'
+import { BankOutlined, SettingOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
 export interface NavItem {
@@ -12,8 +6,6 @@ export interface NavItem {
   path: string
   label: string
   icon: ReactNode
-  /** 需要解析清单确认后才解锁（FR-2 门禁） */
-  requiresUnlock?: boolean
 }
 
 /** 装饰性图标：aria-hidden 避免污染菜单项的 accessible name */
@@ -21,20 +13,16 @@ function decorative(icon: ReactNode): ReactNode {
   return <span aria-hidden="true">{icon}</span>
 }
 
+/**
+ * 主导航（启动后首页仅保留工作入口）。
+ * 解析/商务标/标书检查不进首页导航：经「企业/项目 → 进入项目」按项目流程进入，
+ * 解析完成后由解析页内的入口按钮进入商务标制作/标书检查（FR-2 门禁不变）。
+ */
 export const NAV_ITEMS: NavItem[] = [
   { path: '/workspace', label: '企业/项目', icon: decorative(<BankOutlined />) },
-  { path: '/parse', label: '招标文件解析', icon: decorative(<FileSearchOutlined />) },
-  {
-    path: '/bid',
-    label: '商务标制作',
-    icon: decorative(<FileTextOutlined />),
-    requiresUnlock: true,
-  },
-  {
-    path: '/check',
-    label: '标书检查',
-    icon: decorative(<AuditOutlined />),
-    requiresUnlock: true,
-  },
+]
+
+/** 导航栏底部固定项 */
+export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { path: '/settings', label: '配置', icon: decorative(<SettingOutlined />) },
 ]

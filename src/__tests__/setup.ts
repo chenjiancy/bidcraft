@@ -17,6 +17,50 @@ Object.defineProperty(window, 'matchMedia', {
   }),
 })
 
+// 解析配置默认项（与后端 app/parse/config.py 目录一致，供 ParsePage 渲染）
+const REQUIRED_CONFIG_ITEMS = [
+  ['project_overview', '项目概述'],
+  ['tech_score', '技术评分要求'],
+  ['project_info', '项目信息'],
+  ['buyer_info', '甲方信息'],
+  ['response_requirements', '响应文件要求'],
+  ['agency_info', '代理机构信息'],
+  ['business_score', '商务评分要求'],
+  ['invalid_bid', '无效标与废标项'],
+] as const
+const OPTIONAL_CONFIG_ITEMS = [
+  ['delivery_service', '交货和服务要求'],
+  ['procurement_list', '采购清单'],
+  ['bid_milestones', '投标关键节点'],
+  ['bid_bond', '投标保证金'],
+  ['qualification_review', '资格性审查'],
+  ['compliance_review', '符合性检查'],
+  ['bid_opening', '开标要求'],
+  ['bid_evaluation', '评标要求'],
+  ['contract_award', '合同授予与签订'],
+  ['contract_termination', '合同解除和终止'],
+] as const
+
+const defaultParseConfig = () => ({
+  is_default: true,
+  items: [
+    ...REQUIRED_CONFIG_ITEMS.map(([key, label]) => ({
+      key,
+      label,
+      required: true,
+      selected: true,
+    })),
+    ...OPTIONAL_CONFIG_ITEMS.map(([key, label]) => ({
+      key,
+      label,
+      required: false,
+      selected: false,
+    })),
+  ],
+  llm_enabled: false,
+  llm_mode: 'validate',
+})
+
 // Electron preload API mock（jsdom 环境无 Electron；sidecar.call 按路由返回默认值）
 window.bid = {
   app: {
@@ -25,7 +69,7 @@ window.bid = {
   },
   sidecar: {
     health: () => Promise.resolve({ status: 'healthy' }),
-    call: (route: string) => {
+    call: (route: string, payload?: unknown, method?: string) => {
       // 模型配置路由返回合理默认值
       if (route.includes('/model-config/external-confirmed'))
         return Promise.resolve({ confirmed: false })
@@ -46,6 +90,28 @@ window.bid = {
           chapters: null,
           dedupe: null,
         })
+      if (route.endsWith('/parse/config')) {
+        const base = defaultParseConfig()
+        if (method === 'PUT' && payload && typeof payload === 'object') {
+          const selected = new Set((payload as { selected?: string[] }).selected ?? [])
+          const llmEnabled = Boolean((payload as { llm_enabled?: boolean }).llm_enabled)
+          const config = {
+            is_default: false,
+            items: base.items.map((i) => ({ ...i, selected: selected.has(i.key) })),
+            llm_enabled: llmEnabled,
+            llm_mode: llmEnabled
+              ? ((payload as { llm_mode?: string }).llm_mode ?? 'validate')
+              : 'validate',
+          }
+          return Promise.resolve({
+            config,
+            reparse_required: false,
+            changes: {},
+            affected_items: [],
+          })
+        }
+        return Promise.resolve(base)
+      }
       return Promise.resolve([])
     },
     stream: () => Promise.resolve({ stage: 'completed', percent: 100, message: '' }),

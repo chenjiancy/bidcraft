@@ -58,6 +58,35 @@ export interface ParseStatus {
   dedupe: Record<string, unknown> | null
 }
 
+// ---------- Task 9：解析配置 ----------
+
+export interface ParseConfigItem {
+  key: string
+  label: string
+  required: boolean
+  selected: boolean
+}
+
+/** LLM 辅助模式：校验 / 双通道（双通道后续迭代落地，当前仅存储选择） */
+export type LlmMode = 'validate' | 'dual_channel'
+
+export interface ParseConfig {
+  /** true = 项目从未保存过配置，返回的是默认配置 */
+  is_default: boolean
+  items: ParseConfigItem[]
+  llm_enabled: boolean
+  llm_mode: LlmMode | string
+}
+
+export interface ParseConfigSaveResult {
+  config: ParseConfig
+  /** PARSED 后发生配置变更：要素层需重新解析才生效 */
+  reparse_required: boolean
+  changes: Record<string, unknown>
+  /** 受影响 checkpoint item keys（Task 9 恒空，Task 10 扩展单项重试） */
+  affected_items: string[]
+}
+
 function projectRoute(enterpriseId: string, projectId: string, action: string): string {
   return `${BASE}/enterprises/${enterpriseId}/projects/${projectId}/parse/${action}`
 }
@@ -109,4 +138,24 @@ export function retryParseItem(
 
 export function cancelParseTask(taskId: string): Promise<unknown> {
   return window.bid.sidecar.cancelTask(taskId)
+}
+
+export function getParseConfig(enterpriseId: string, projectId: string): Promise<ParseConfig> {
+  return window.bid.sidecar.call(
+    projectRoute(enterpriseId, projectId, 'config'),
+  ) as Promise<ParseConfig>
+}
+
+export function updateParseConfig(
+  enterpriseId: string,
+  projectId: string,
+  selected: string[],
+  llmEnabled: boolean,
+  llmMode: LlmMode,
+): Promise<ParseConfigSaveResult> {
+  return window.bid.sidecar.call(
+    projectRoute(enterpriseId, projectId, 'config'),
+    { selected, llm_enabled: llmEnabled, llm_mode: llmMode },
+    'PUT',
+  ) as Promise<ParseConfigSaveResult>
 }

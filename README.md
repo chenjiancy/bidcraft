@@ -8,12 +8,12 @@ AI 标书制作是一款用 AI 辅助生成招投标文件的 Windows 桌面工�
 
 ## 功能范围
 
-| 阶段 | 内容 | 状态 |
-|---|---|---|
-| 1.0 | 工程地基：Electron + Python sidecar 架构、企业/项目管理、模型配置、Walking Skeleton | ✅ 已完成 |
-| 1.1 | 招标文件解析：MinerU 解析（PDF/Word/扫描件 OCR）、章节切分、评分表结构化、解析清单人工确认 | 📋 已细化，待编码 |
-| 1.2 | 商务标生成：格式清单确认、素材库与素材提取、模板库与匹配比对、docxtpl 逐章渲染、转 PDF/合并、回收站 | 📋 已细化，待编码 |
-| 二期 | 技术标（监理大纲/服务方案）生成、标书检查 | 不在本期 |
+| 阶段 | 内容                                                                                                | 状态              |
+| ---- | --------------------------------------------------------------------------------------------------- | ----------------- |
+| 1.0  | 工程地基：Electron + Python sidecar 架构、企业/项目管理、模型配置、Walking Skeleton                 | ✅ 已完成         |
+| 1.1  | 招标文件解析：MinerU 解析（PDF/Word/扫描件 OCR）、章节切分、评分表结构化、解析清单人工确认          | 📋 已细化，待编码 |
+| 1.2  | 商务标生成：格式清单确认、素材库与素材提取、模板库与匹配比对、docxtpl 逐章渲染、转 PDF/合并、回收站 | 📋 已细化，待编码 |
+| 二期 | 技术标（监理大纲/服务方案）生成、标书检查                                                           | 不在本期          |
 
 主流程：
 
@@ -57,17 +57,17 @@ npm run dev           # 终端 2：Electron
 
 ## 常用命令
 
-| 命令 | 说明 |
-|---|---|
-| `npm run dev` | 启动开发模式 |
-| `npm run build` | 构建 Electron 产物 |
-| `npm run dist` | 打包 Windows 安装包（electron-builder） |
-| `npm test` | 前端单元测试（Vitest） |
-| `npm run test:py` | Python 全部测试（pytest） |
-| `npm run test:e2e` | 构建并运行 Playwright 端到端测试 |
-| `npm run lint` | ESLint + ruff + mypy + 类型检查 |
-| `npm run format` | Prettier + ruff 格式化 |
-| `npm run reset:dev` | 重置开发环境数据 |
+| 命令                | 说明                                    |
+| ------------------- | --------------------------------------- |
+| `npm run dev`       | 启动开发模式                            |
+| `npm run build`     | 构建 Electron 产物                      |
+| `npm run dist`      | 打包 Windows 安装包（electron-builder） |
+| `npm test`          | 前端单元测试（Vitest）                  |
+| `npm run test:py`   | Python 全部测试（pytest）               |
+| `npm run test:e2e`  | 构建并运行 Playwright 端到端测试        |
+| `npm run lint`      | ESLint + ruff + mypy + 类型检查         |
+| `npm run format`    | Prettier + ruff 格式化                  |
+| `npm run reset:dev` | 重置开发环境数据                        |
 
 ## 目录结构
 
