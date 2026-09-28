@@ -151,7 +151,11 @@ bidcraft-master/
 │           └── <project_id>/
 │               ├── project.json
 │               ├── source/         # 原招标文件
-│               ├── parsed/         # 解析格式章节 docx（投标文件格式）
+│               ├── parse/          # 解析产物根目录（Task 8 落地）
+│               │   ├── raw/         # MinerU 原始产物（Markdown + JSON，含页码坐标和 bbox）
+│               │   ├── structured/  # 结构化产物（score_table.json 等，Task 11 落地）
+│               │   └── confirmed/  # 人工确认后的最终清单（parse_checklist.json，Task 13 落地）
+│               ├── parsed/         # 解析格式章节 docx（投标文件格式，Task 12 落地）
 │               ├── project-materials/   # 项目独享资料库（社保等）
 │               ├── template-work/  # 提取到项目内的模板
 │               ├── output/         # 逐章生成 Word
@@ -170,6 +174,8 @@ bidcraft-master/
 INIT(已建项目)
   → UPLOADED(已传招标文件)
   → PARSING(解析中) ─cancel/失败→ UPLOADED
+  → PARSED(解析完成，Task 8 落地)
+  → SCORE_PARSED(评分办法解析完成，Task 11 落地)
   → PARSE_REVIEW(待人工确认清单)
   → PARSE_CONFIRMED(清单已确认，解锁业务模块)
   → MATERIAL_LOOP(素材提取循环)
@@ -196,7 +202,7 @@ INIT(已建项目)
 ### 7.1 解析流程
 1. 用户上传文件 → Main 校验 → Python `/parse/document`（SSE：提取→粗分→LLM校验→摘要审计）；
 2. 输出可编辑清单（不一致标红）→ 用户逐条确认/增删 → `/parse/confirm`；
-3. 同时产出 score_table.json 与 parsed/ 章节 docx；
+3. 同时产出 `parse/structured/score_table.json`（评分办法结构化，Task 11）与 `parsed/` 章节 docx（Task 12）；
 4. 状态 → PARSE_CONFIRMED，解锁模块。
 
 ### 7.2 商务标制作
