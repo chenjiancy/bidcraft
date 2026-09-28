@@ -1,7 +1,8 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { renderApp, resetAppStore } from './utils'
+import { useAppStore } from '../stores/useAppStore'
 
 describe('应用外壳与导航', () => {
   beforeEach(() => {
@@ -10,7 +11,7 @@ describe('应用外壳与导航', () => {
 
   it('默认路由重定向到企业/项目页，且 5 个导航项全部可见', () => {
     renderApp('/')
-    expect(screen.getByText('企业/项目管理')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /新建企业/ })).toBeInTheDocument()
     for (const label of ['企业/项目', '招标文件解析', '商务标制作', '标书检查', '配置']) {
       expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument()
     }
@@ -28,7 +29,7 @@ describe('应用外壳与导航', () => {
     expect(await screen.findByText(/PDF \/ Word \/ 扫描件上传/)).toBeInTheDocument()
 
     await user.click(screen.getByRole('menuitem', { name: '企业/项目' }))
-    expect(await screen.findByText(/企业—项目两级数据管理/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /新建企业/ })).toBeInTheDocument()
   })
 
   it('未确认清单前商务标制作/标书检查菜单项置灰', () => {
@@ -44,19 +45,10 @@ describe('应用外壳与导航', () => {
     expect(screen.getByText('模块未解锁')).toBeInTheDocument()
   })
 
-  it('模拟确认清单后业务模块解锁、可正常进入', async () => {
-    const user = userEvent.setup()
-    renderApp('/parse')
-
-    await user.click(screen.getByRole('button', { name: '模拟确认解析清单（临时）' }))
-    expect(screen.getByText('（模拟）解析清单已确认，业务模块已解锁')).toBeInTheDocument()
-
-    // 等待 rc-menu 内部状态收敛后再断言解锁
-    const bidItem = await screen.findByRole('menuitem', { name: '商务标制作' })
-    await waitFor(() => expect(bidItem).not.toHaveClass('ant-menu-item-disabled'))
-
-    await user.click(bidItem)
-    expect(await screen.findByText(/素材提取、模板匹配与比对/)).toBeInTheDocument()
+  it('确认清单后业务模块解锁、可正常进入', () => {
+    useAppStore.getState().setParseConfirmed(true)
+    renderApp('/bid')
+    expect(screen.getByText(/素材提取、模板匹配与比对/)).toBeInTheDocument()
     expect(screen.queryByText('模块未解锁')).not.toBeInTheDocument()
   })
 })

@@ -8,6 +8,8 @@ export function resetAppStore() {
   useAppStore.setState({
     themeMode: 'light',
     isParseConfirmed: false,
+    currentEnterprise: null,
+    currentProject: null,
   })
 }
 

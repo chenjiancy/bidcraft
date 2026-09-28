@@ -24,7 +24,7 @@ export interface BidAPI {
   }
   sidecar: {
     health: () => Promise<SidecarHealthResult>
-    call: (route: string, payload?: unknown) => Promise<unknown>
+    call: (route: string, payload?: unknown, method?: string) => Promise<unknown>
     stream: (
       route: string,
       payload: unknown,
