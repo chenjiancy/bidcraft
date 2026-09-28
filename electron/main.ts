@@ -9,6 +9,7 @@ import {
   stopSidecar,
 } from './sidecar'
 import { initUpdater } from './updater'
+import { registerCredIpc } from './cred'
 
 // dev/prod 环境检测（architecture.md 10.1）：
 // electron-vite 在开发模式下注入 ELECTRON_RENDERER_URL，比 NODE_ENV 可靠
@@ -170,6 +171,7 @@ app.whenReady().then(() => {
   })
 
   registerSidecarIpc()
+  registerCredIpc()
 
   // sidecar 自动拉起（随机端口 + 本地令牌 + 健康检查 + 崩溃检测）
   startSidecar(useDevRunner, app.getPath('userData')).catch((err: unknown) =>
