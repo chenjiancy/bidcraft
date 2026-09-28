@@ -11,9 +11,8 @@ class TaskRegistry:
         self._cancel_events: dict[str, asyncio.Event] = {}
 
     def register(self, task_id: str) -> asyncio.Event:
-        event = asyncio.Event()
-        self._cancel_events[task_id] = event
-        return event
+        # 幂等：任务创建时先注册（可立即响应取消），协程启动后取同一事件
+        return self._cancel_events.setdefault(task_id, asyncio.Event())
 
     def request_cancel(self, task_id: str) -> bool:
         """对在册任务设置取消信号；任务不存在或已结束返回 False。"""

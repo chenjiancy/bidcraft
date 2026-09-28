@@ -40,6 +40,7 @@ def _project_out(project: Project, enterprise_agent: str) -> ProjectOut:
         code=project.code,
         agent=project.agent or enterprise_agent,
         status=project.status,
+        parse_status=project.parse_status,
     )
 
 

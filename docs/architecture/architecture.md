@@ -56,6 +56,19 @@
 
 SSE 事件统一：`{stage, percent, message, extra?}`；终态 `completed`/`failed`/`cancelled`。
 
+#### Task 8 已落地路由（招标文件解析 v1）
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/parse/engine` | MinerU/LibreOffice 引擎探针（版本、CUDA、可用性） |
+| POST | `/enterprises/{eid}/projects/{pid}/parse/sources` | 登记本机源文件（绝对路径，sidecar 同机复制入库） |
+| POST | `.../parse/start` | 启动解析/断点续跑（SSE；响应头 `X-Task-Id`；body `{reparse?: bool}`） |
+| GET | `.../parse/status` | 状态机 + checkpoint + sources/dedupe/chapters 汇总 |
+| POST | `.../parse/retry` | 单项重试（body `{item: key|null}`，null=续跑未完成项） |
+| POST | `/tasks/{task_id}/cancel` | 取消运行中任务（复用通用任务取消通道） |
+
+实现说明：Main 进程在 SSE body 到达前先下发一条 IPC 元事件（`stage:'meta'`，`extra.taskId`）供渲染端取消；该事件不来自后端、不入库。
+
 ## 三、代码目录结构（仓库）
 
 ```
@@ -150,9 +163,14 @@ bidcraft-master/
 │       └── projects/
 │           └── <project_id>/
 │               ├── project.json
-│               ├── source/         # 原招标文件
+│               ├── source/         # 原招标文件（登记时复制入库，safe_filename+重名后缀）
+│               ├── sources.json    # 登记清单（含 sha256，Task 8）
+│               ├── dedupe.json     # 同名多格式去重决策/丢弃/不一致记录（Task 8）
+│               ├── chapters.json   # 章节树（含 page_idx/bbox 锚点 + 目录交叉校验，Task 8）
 │               ├── parse/          # 解析产物根目录（Task 8 落地）
-│               │   ├── raw/         # MinerU 原始产物（Markdown + JSON，含页码坐标和 bbox）
+│               │   ├── raw/         # MinerU 原始产物（每源一个子目录：<stem>.md + content_list.json + middle.json + images/）
+│               │   ├── work/        # LibreOffice 转换的工作 PDF（.doc/.docx 指纹与解析输入）
+│               │   ├── checkpoints/ # BP-1 断点文件 document_parse.json（原子写，崩溃 running 回置 idle）
 │               │   ├── structured/  # 结构化产物（score_table.json 等，Task 11 落地）
 │               │   └── confirmed/  # 人工确认后的最终清单（parse_checklist.json，Task 13 落地）
 │               ├── parsed/         # 解析格式章节 docx（投标文件格式，Task 12 落地）
@@ -192,6 +210,11 @@ INIT(已建项目)
 ```
 门禁：PARSE_CONFIRMED 之前其他业务模块 UI 置灰（FR-2）。
 
+> Task 8 落地：前四个状态持久化在 `project.parse_status`（INIT/UPLOADED/PARSING/PARSED）。
+> 合法转换：INIT→UPLOADED（登记）、UPLOADED→PARSING、PARSING→PARSED；
+> 取消/异常一律 PARSING→UPLOADED（可断点续跑）；PARSING 自环允许崩溃后幂等重入；
+> PARSED→UPLOADED/PARSING 允许换文件重解析。每次转换写 `app_event`（type=`parse_state_change`）。
+
 ### 6.2 文件级状态（每个章节/素材独立）
 `PENDING → PROCESSING → AWAIT_CONFIRM → CONFIRMED → GENERATED`；
 旁路状态：`MISSING`（缺失，只披露不阻断）、`EXTERNAL`（系统外）、`ERROR`。
@@ -208,6 +231,28 @@ INIT(已建项目)
 2. 输出可编辑清单（不一致标红）→ 用户逐条确认/增删 → `/parse/confirm`；
 3. 同时产出 `parse/structured/score_table.json`（评分办法结构化，Task 11）与 `parsed/` 章节 docx（Task 12）；
 4. 状态 → PARSE_CONFIRMED，解锁模块。
+
+#### 7.1.1 Task 8 已落地流水线（BP-1 Checkpoint 驱动，权重 5/20/25/85/100）
+
+```
+dedupe（同名分组，docx>doc>pdf）
+  → preprocess:<file>（.doc/.docx 经 LibreOffice 转工作 PDF）
+  → dedupe-verify（PDF 文本指纹：页数+归一化文本 sha256，相似度≥0.85 判同；
+                   同名异内容不去重，候选改名 -mmN 保留并披露）
+  → mineru:<file>（MinerU pipeline -m auto：文字版直提 / 扫描件自动 PP-OCRv6）
+  → chapters:<file>（章节树 + 目录交叉校验 + 噪声内部消化）
+  → PARSED
+```
+
+- Checkpoint 项状态 idle/running/success/error，原子落盘；崩溃后 running 回置 idle，
+  重跑只执行未成功项（断点续跑）；单项重试按依赖级联清除下游（如 mineru 重置连带 chapters）。
+- MinerU 3.4.5 实测产物布局：`parse/raw/<stem>/<method>/`（method=auto/txt/ocr），
+  含 `<stem>.md`、`<stem>_content_list.json`（块带 type/text/text_level/page_idx/bbox）、
+  `<stem>_middle.json`、`images/`。
+- 噪声容错（TR-8.6）："目 录"类变体目录页识别、表单勾选/冒号尾行误标过滤、
+  同页 ≥3 个一级标题的文件构成清单整组丢弃、页眉 3 页窗口去重、章节 end_page 不倒挂；
+  被消化数量计入 `stats.heading_noise_dropped`，不打扰用户。
+- 真实样本基线（开发机 RTX 3060 Ti）：57 页文字版 154s；97 页纯扫描件（0 文本层）OCR 199s。
 
 ### 7.2 商务标制作
 1. 格式：PARSE_CONFIRMED 后展示 parsed/ 逐章 docx 清单 → 增删改、新增项识别 → 逐条确认（Task 14）→ FORMAT_CONFIRMED；
@@ -249,6 +294,7 @@ INIT(已建项目)
 | 确定性回归（商务标） | `sidecar/tests/test_render_regression.py` | 固定输入→固定输出，生成的 Word 与期望文档比对 |
 | 状态机测试 | `src/machines/__tests__/` | XState 合法/非法转换 + 断点恢复 |
 | LLM 模式测试 | `sidecar/tests/test_llm_modes.py` | 默认关断言 + mock 校验/双通道，测试原文锚定拦截幻觉 |
+| 真实引擎端到端（Task 8） | `sidecar/tests/engine/`（marker `engine`；扫描件另标 `slow`） | 真实 MinerU 3.4.5 + LibreOffice + `samples/` 样本：TR-8.1 文字版 bbox/章节、TR-8.2 扫描件 OCR、TR-8.3 .doc 转换、TR-8.5 合成夹具指纹；无 `.venv-mineru` 自动 skip，CI 不装 |
 
 ### 9.3 CI 分层触发
 
@@ -265,6 +311,9 @@ INIT(已建项目)
 src/__tests__/              # 前端单元测试（Vitest）
 src/machines/__tests__/     # 状态机测试
 sidecar/tests/
+├── unit/                   # 纯单元（checkpoint/状态机/去重/章节/路径/引擎产物定位）
+├── integration/            # FastAPI TestClient（API/SSE/取消/续跑/隔离；MinerU 全部 fake）
+├── engine/                 # 真实引擎端到端（marker: engine/slow，本机手工跑，CI skip）
 ├── golden/                 # 黄金样本（EM-1）
 ├── test_isolation.py       # 数据隔离专项
 ├── test_render_regression.py  # 商务标确定性回归
@@ -375,6 +424,26 @@ await keytar.setPassword(service, 'llm-api-key', encryptedKey);
 ### 10.7 CI 测试环境
 
 GitHub Actions runner 用临时路径（如 `%RUNNER_TEMP%\BidCraft-test`），不与 dev/prod 冲突。CI 中通过环境变量 `BIDCRAFT_DATA_ROOT` 指定。
+
+### 10.8 MinerU 独立解释器环境（Task 8）
+
+MinerU 3.4.5 依赖体量大（torch CUDA、paddleocr 系模型库），与主 sidecar 依赖（FastAPI/pypdf/uv.lock）
+**物理隔离**：独立虚拟环境 `sidecar/.venv-mineru/`（已入 .gitignore，不进 uv.lock、不进 CI），
+sidecar 以子进程方式调用其 CLI：
+
+```
+mineru -p <input> -o <out> -b pipeline -m auto -l ch
+```
+
+- 解释器发现：环境变量 `BIDCRAFT_MINERU_PYTHON` → 开发期默认 `sidecar/.venv-mineru/Scripts/python.exe`；
+- LibreOffice（.doc 转换）发现：`BIDCRAFT_SOFFICE` → PATH → Windows 默认安装路径；
+- 版本不符（主版本 ≠3）/未安装 → `GET /parse/engine` 返回 available=false 并带原因，前端禁用启动，不静默降级；
+- 已知环境补丁：3.4.5 遗漏依赖 `six`（pytorch_paddle OCR 链 import），装机后需
+  `uv pip install --python .venv-mineru/Scripts/python.exe six`；
+  torch 用 cu128 CUDA 轮（torch 2.11.0+cu128，RTX 3060 Ti 实测可用）；
+- pipeline 模型首次解析时自动下载（或 `mineru-models-download modelscope/pipeline` 预下），
+  缓存于用户模型目录，不属仓库资产；
+- MinerU 许可证为自定义条款（非标准 SPDX），分发前需法务复核（见会话记录披露项）。
 
 ## 十一、发布与自动更新
 

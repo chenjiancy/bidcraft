@@ -7,6 +7,7 @@ dependencies = [
     "alembic>=1.14",
     "fastapi>=0.115",
     "httpx>=0.28",
+    "pypdf>=6.19.0",
     "sqlalchemy>=2.0.36",
     "uvicorn[standard]>=0.34",
 ]
@@ -34,6 +35,10 @@ warn_unused_ignores = true
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra"
+markers = [
+    "engine: 需要本机 MinerU venv/样本的真实解析测试（无环境自动 skip，CI 不装）",
+    "slow: 耗时较长的测试（如扫描件 OCR）",
+]
 
 [tool.uv]
 package = false

@@ -20,6 +20,8 @@ export interface Project {
   code: string | null
   agent: string
   status: string
+  /** 解析状态机：INIT/UPLOADED/PARSING/PARSED */
+  parse_status: string
 }
 
 export interface RecycleBinItem {

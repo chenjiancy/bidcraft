@@ -40,6 +40,11 @@ const api = {
     /** 请求取消异步任务 */
     cancelTask: (taskId: string): Promise<unknown> => ipcRenderer.invoke('task:cancel', taskId),
   },
+  dialog: {
+    /** 打开本机招标文件选择对话框，返回选中文件（绝对路径，供同机 sidecar 入库） */
+    openBidFiles: (): Promise<Array<{ name: string; path: string }>> =>
+      ipcRenderer.invoke('dialog:openBidFiles'),
+  },
   cred: {
     /** 保存 API Key（DPAPI 加密存储） */
     setApiKey: (apiKey: string): Promise<{ success: boolean }> =>
