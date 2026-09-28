@@ -411,7 +411,13 @@
   - **dev/prod 环境隔离（2026-09-28 确认）**：开发环境 userData 为 `%AppData%\BidCraft-dev`，生产环境为 `%AppData%\BidCraftApp`（不用 `BidCraft`，避免与仓库上层目录同名混淆）。环境检测用 `VITE_DEV_SERVER_URL`。数据根目录通过命令行参数 `--data-root` + 环境变量 `BIDCRAFT_DATA_ROOT` 传给 sidecar。详见 [architecture.md 第十章](file:///e:/bidcraft/bidcraft-master/docs/architecture/architecture.md)。
 - **业务约束**:
   - **数据隔离模型（企业—项目两级）**：本期即按此模型实现，属基本功能。一个用户可创建多个企业；企业与企业之间数据完全隔离——进入某企业后只能访问该企业数据，只能在该企业内创建项目。同一企业内，项目与项目之间相互隔离。同一企业内的素材库、模板库共享（不随项目隔离），企业之间不共享。本期仅一个用户，暂不实现多用户/权限管理，预留扩展。
-- **依赖项**: （待补充）
+- **依赖项**:
+  - **MinerU**（Apache 2.0 自定义许可）：文档解析引擎，本机 GPU 3060Ti 8G 加速；版本本期锁定（3.x → 4.0 有 breaking change，具体版本待开发时确定）。
+  - **electron-updater + electron-builder（NSIS）**：自动更新与安装包分发，更新源 GitHub Releases（NFR-7）。
+  - **LiteLLM**：云端模型统一接入（默认关，用户按需开启；见 FR-2/FR-4）。
+  - **docxtpl + python-docx**：Word 模板渲染与格式解析（免费 InlineImage）。
+  - **LibreOffice headless 或本机 Word（docx2pdf）**：Word→PDF 转换，开发时验证保真度。
+  - **Ant Design 5 / React 18 / Electron / TypeScript / SQLite + SQLAlchemy 2 / FastAPI**：主技术栈（详见 tech-selection.md）。
 
 ## 假设
 > 以下前提经 2026-09-28 用户确认为真；若将来不成立，相关需求与计划需相应调整。
@@ -441,4 +447,9 @@
 > 说明：AC 为产品级"算完成"标准；Task 7 通过 + AC-1～8 全部满足 = 阶段 1.0 验收完成。阶段 1.1/1.2 的 AC 进入各阶段前补充。
 
 ## 待解决问题
-- [ ] （待补充）
+> 以下为本期明确推迟、需在后续阶段或开发中决策的开放项；新增项按 TS-N 登记。
+
+- [ ] **TS-1**：多模型配置与自动切换机制（含读图、生图模型）——待软件跑通后的功能迭代阶段再讨论（见 FR-2 第 5 点）。
+- [ ] **TS-2**：MinerU 版本锁定——3.x → 4.0 有 breaking change，本期锁定具体版本待开发时确定（见 FR-2 第 5 点）。
+- [ ] **TS-3**：Word→PDF 转换保真度——LibreOffice headless 与本机 Word（docx2pdf）两条路径，待开发时以真实样本比对验证并选定（见 tech-selection.md R2）。
+- [ ] **TS-4**：素材归档 OCR 复用策略——复用 MinerU 内置 OCR 还是独立 PaddleOCR，待开发时验证（见 tech-selection.md 3.2）。
