@@ -1141,15 +1141,17 @@ def _emit_progress(
     stage: str,
     chapter: str | None = None,
     progress_pct: int | None = None,
+    message: str | None = None,
     **extra: Any,
 ) -> None:
-    """发送 SSE 进度事件。"""
-    event: dict[str, Any] = {"type": "progress", "stage": stage}
+    """发送 SSE 进度事件（与 electron/lib/sse.ts 的 ProgressEvent 结构对齐）。"""
+    event: dict[str, Any] = {"stage": stage, "percent": progress_pct or 0}
+    if message is not None:
+        event["message"] = message
     if chapter is not None:
-        event["chapter"] = chapter
-    if progress_pct is not None:
-        event["progress"] = progress_pct
-    event.update(extra)
+        extra["chapter"] = chapter
+    if extra:
+        event["extra"] = extra
     try:
         emit(event)
     except Exception:
