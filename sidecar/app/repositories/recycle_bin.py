@@ -1,9 +1,11 @@
 """回收站仓储：记录软删除项、列表、恢复、物理清除。"""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import select
+from sqlalchemy import update as sa_update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.models.recycle_bin import RecycleBin
@@ -91,8 +93,6 @@ class RecycleBinRepository:
           - action: "restored" | "renamed" | "skipped"
           - error: 错误信息（如有）
         """
-        from sqlalchemy import update as sa_update
-
         from app.models.material import Material
         from app.models.template import Template
         from app.repositories.base import Scope
@@ -138,21 +138,27 @@ class RecycleBinRepository:
             project.status = "active"
 
         elif item_type == "material":
-            result = self.session.execute(
-                sa_update(Material)
-                .where(Material.id == ref_id)
-                .where(Material.enterprise_id == instance.enterprise_id)
-                .values(deleted_at=None, status="active")
+            result = cast(
+                CursorResult,
+                self.session.execute(
+                    sa_update(Material)
+                    .where(Material.id == ref_id)
+                    .where(Material.enterprise_id == instance.enterprise_id)
+                    .values(deleted_at=None, status="active")
+                ),
             )
             if result.rowcount == 0:
                 return instance, {"restored": False, "action": "error", "error": "素材不存在"}
 
         elif item_type == "template":
-            result = self.session.execute(
-                sa_update(Template)
-                .where(Template.id == ref_id)
-                .where(Template.enterprise_id == instance.enterprise_id)
-                .values(deleted_at=None, status="active")
+            result = cast(
+                CursorResult,
+                self.session.execute(
+                    sa_update(Template)
+                    .where(Template.id == ref_id)
+                    .where(Template.enterprise_id == instance.enterprise_id)
+                    .values(deleted_at=None, status="active")
+                ),
             )
             if result.rowcount == 0:
                 return instance, {"restored": False, "action": "error", "error": "模板不存在"}
