@@ -40,9 +40,11 @@
   - 披露：双通道模式仅存储选择不实现（Task 10 落地）；TR-9.4 采用"链路打通+reparse 兜底"（物理层不重跑，affected_items 映射 Task 10 接单项重试）；修复 main PR#32 README.md prettier 格式
 - [x] Task 10：规则粗分 + LLM 校验（TR-10.1～10.9 全部满足，PR #34；rules/ 纯逻辑包、术语识别+动态词典、子节性质标注、LLM 校验+幻觉拦截+全文审计、缓存预热 cached_tokens 迁移、双通道禁用；窗口验证通过）
   - 披露：extract:llm 失败不阻塞 PARSED（可选增强，可单项重试）；配置变更 PUT 只返回 affected_items 由前端逐项 retry 续跑；API Key 仅 DPAPI 临时透传不落库；窗口验证样本（HTML→PDF）未入库
+- [x] Task 11：评分办法解析 → score_table.json（TR-11.1～11.10 全部满足，PR #35；rules/scoring 专用规则子集：大类/评分项/证明材料/门槛三类抽取+多来源合并+合计≠100 标红不阻断；JSON Schema 硬校验门禁 schema_validated；状态机 PARSED→SCORE_PARSED；score:extract/score:llm checkpoint 复用+reset 级联；LLM 专项校验完整性/合计/门槛遗漏；前端评分表摘要卡片）
+  - 披露：评分表抽取为规则（关键词+正则），非标表格（复杂合并单元格）可能抽取不全，走 unrecognized 标红 + LLM 校验兜底；score:extract 失败不阻塞终态（回落 PARSED，可单项重试）；修复 pre-commit 拦下的 E501/F841 两处；补锁 jsonschema 4.26 入 uv.lock；真实样本窗口验证未做（测试以 fake MinerU + 单测覆盖）
 - 纪律复核：
-  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10 已遵守）
-  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10 已遵守）
+  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11 已遵守）
+  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11 已遵守）
 
 ## 验收阶段检查
 - [x] 阶段 1.0 验收标准（AC）已定义并全部满足（Task 1-7 全部 done，PR #13/#15/#17/#19/#22/#24/#26）

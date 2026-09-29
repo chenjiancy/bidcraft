@@ -11,3 +11,5 @@
 | 07 | 2026-09-28 | Task 5 编码：企业/项目管理最小功能 | 企业/项目 CRUD + 回收站 + 全局企业/项目上下文，TR-5.1/5.2/5.3 全满足 | [session-07.md](sessions/2026-09-28-session-07.md) |
 | 08 | 2026-09-28 | Task 8 编码：招标文件文本/OCR 解析与结构化 | MinerU 3.4.5 独立环境封装、去重/预处理/章节切分/Checkpoint 断点续跑、SSE 进度与取消、真实样本端到端验证（57 页文字版/97 页扫描件） | [session-08.md](sessions/2026-09-28-session-08.md) |
 | 09 | 2026-09-29 | Task 9 编码：解析配置 | 18 项目录（8 关键必选+10 其他）+ LLM 总开关/模式、项目级 parse_project_config 表、GET/PUT config API、PARSED 后变更提示重解析、122+26 测试全绿 | [session-09.md](sessions/2026-09-29-session-09.md) |
+| 10 | 2026-09-29 | Task 10 编码：规则粗分 + LLM 校验 | rules/ 纯逻辑包（catalog/terms/nature/extract/anchor）、术语动态词典、LLM 校验+幻觉拦截+全文审计、cached_tokens 迁移、extract:coarse/extract:llm checkpoint、双通道禁用、148 测试全绿（PR #34） | [session-10-rule-extract.md](session-10-rule-extract.md) |
+| 11 | 2026-09-29 | Task 11 编码：评分办法解析 → score_table.json | rules/scoring 子集（大类/评分项/材料/门槛三类+多来源合并+合计≠100 标红不阻断）、JSON Schema 硬校验门禁、状态机 SCORE_PARSED、score:extract/score:llm checkpoint、LLM 专项校验、前端评分表摘要、153+30 测试全绿（PR #35） | [session-11-score-table.md](session-11-score-table.md) |

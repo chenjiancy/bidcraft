@@ -199,7 +199,7 @@
   - 双通道模式推迟到后续迭代（spec.md Roadmap"高精度双通道后续迭代"）。
   - 术语识别归属 Task 10；混合章节建立子节结构在 Task 8，标注内容性质在 Task 10。
 ## Task 11: 评分办法解析 → `score_table.json`【原 Task 12，编号顺延】
-- **Status**: pending
+- **Status**: done（PR #35，squash 合并 2026-09-29，TR-11.1～11.10 全部满足）
 - **Priority**: high
 - **Depends On**: Task 10
 - **Description**:
