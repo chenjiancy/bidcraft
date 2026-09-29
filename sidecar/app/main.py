@@ -1,5 +1,8 @@
 """FastAPI 应用入口。"""
 
+import logging
+import sys
+
 from fastapi import FastAPI
 
 from app.api import (
@@ -15,6 +18,14 @@ from app.api import (
     test_events,
 )
 from app.tasks.recycle_cleanup import start_cleanup_scheduler
+
+# M20 修复：统一日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    stream=sys.stdout,
+)
 
 app = FastAPI(title="BidCraft Sidecar", version="0.1.0")
 
