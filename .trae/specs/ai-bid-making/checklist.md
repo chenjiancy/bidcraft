@@ -46,7 +46,7 @@
   - 披露：三处实施偏差已经用户确认（决策1=A'统一 content_list 不直读原文件；决策2=A 目录 parse/docx/；决策3=A 无格式章空清单成功不阻塞）；图片/坏表/空区间红字占位计 red_flags 不静默丢失；未做真实样本窗口验证（fake MinerU 集成 +20 个相关测试覆盖）；docx 下载接口/人工增删/地址链接留 Phase 1.2
 - [x] Task 13：解析清单 UI（逐条确认/增删、标红）+ 门禁解锁（TR-13.1～13.10 全部满足，PR #37；状态机 SCORE_PARSED→PARSE_REVIEW→PARSE_CONFIRMED；三 Tab 清单复核组件：规则粗分/评分表/投标文件格式，逐条 Checkbox 确认；全条目 confirmed=true 硬校验才保存解锁；标红不阻断（anchor 失败/合计≠100/坏表）；docx 打开走 Electron IPC shell:openDocxFile 带路径校验；parse:confirm checkpoint + parse/confirmed/parse_checklist.json；上游重试 _invalidate_confirmed 回退；移除前端错误自动解锁，isParseConfirmed 由后端 PARSE_CONFIRMED 派生）
   - 披露：walking-skeleton 测试语义修正（解析完成不再自动解锁，需 review+confirm）；docx Tab 不做增删留 Phase 1.2；score 人工改分不重算合计（人工兜底）；未做真实样本窗口验证
-- [x] Task 14：商务标格式清单确认（TR-14.1～14.10 全部满足，PR #35；状态机 PARSE_CONFIRMED→FORMAT_REVIEW→FORMAT_CONFIRMED→MATERIAL_LOOP；商务标页面展示 parsed/ 逐章 docx 清单，EXTERNAL 项标注"系统外/不制作"；增（文件路径/名称两种模式）、删（仅标 removed）、改（条目层面）；找不到同名置 MISSING 标红不阻断；确认后 setFormatStatus('FORMAT_CONFIRMED') 刷新门禁；独立 format_list.json checkpoint；vitest 32 passed + pytest 184 passed 全绿）
+- [x] Task 14：商务标格式清单确认（TR-14.1～14.10 全部满足，PR #38；状态机 PARSE_CONFIRMED→FORMAT_REVIEW→FORMAT_CONFIRMED→MATERIAL_LOOP；商务标页面展示 parsed/ 逐章 docx 清单，EXTERNAL 项标注"系统外/不制作"；增（文件路径/名称两种模式）、删（仅标 removed）、改（条目层面）；找不到同名置 MISSING 标红不阻断；确认后 setFormatStatus('FORMAT_CONFIRMED') 刷新门禁；独立 format_list.json checkpoint；vitest 32 passed + pytest 184 passed 全绿）
   - 披露：编辑条目简化为"移除+重新添加"（未直接调用 update API）；未做真实样本窗口验证（fake MinerU + 单测覆盖）
 - 纪律复核：
   - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14 已遵守）
