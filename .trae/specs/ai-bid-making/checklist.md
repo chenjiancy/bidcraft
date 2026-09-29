@@ -62,6 +62,30 @@
   - 披露：CI 首次 Integration Tests 失败（PyMuPDF 未在 pyproject.toml 声明，导致 CI runner 缺依赖），修复后全绿；_merge_pdfs 异常信息暴露不足（except 吞异常只 return False），已修复为 emit 真实异常
 - [x] Task 21：两级回收站（TR-21.1～21.12 全部满足，PR #46；RecycleBin 模型扩展 name/status/file_path/original_name；迁移 a1b2c3d4e5f6；RecycleBinRepository save_name/restore/purge；api/recycle_bin.py list/restore/purge + 系统回收站端点；删除企业拦截（有项目时拒绝）；定时清理任务（每小时扫描 purge_at <= now）；保留时长可配（config_kv 默认30天）；恢复冲突改名；schemas RecycleBinItemOut + SystemRecycleBinItemOut；12 个集成测试）
   - 披露：CI 首次 Lint & Type Check 失败（mypy rowcount 类型错误 + ruff import 问题），修复后全绿
+- **代码审查缺陷修复（2026-09-30）**：全面审查识别出 9 Critical + 20 Major，已逐条修复并提交
+  - **Critical（不废标底线）**：
+    - C2 归档成功后 unlink 用户源文件 → 取消 unlink，源文件保留
+    - C9 模板存相对路径+agency 未过滤 `../` → 改为绝对路径+safe_filename
+    - C1 Electron 路由白名单不含下划线 → 正则改为 `[a-z0-9_]+`
+    - C3 项目素材 file_path 双前缀 → 修正为 `_path_base / final_path`
+    - C4 score_table schema 校验失败仍转 SCORE_PARSED → 改为 raise ParseError
+    - C5 PARSE_CONFIRMED 后重登记文件删产物不回退状态 → 先 ensure_transition 回退
+    - C6 同名 doc/docx 转换覆盖 → 输出 unique_path
+    - C7 agency 路径穿越 → 并入 C9 修复
+    - C8 渲染时重新生成 render_plan 覆盖 B 类用户确认值 → 加载已有计划按章节+占位名匹配保留
+  - **Major**：
+    - M1 purge 不删业务行 → 同时删除 enterprise/project/material/template 表记录
+    - M2 FTS5 索引无人调用 → 删除/恢复素材时同步更新索引
+    - M3 alembic 双头 → merge revision 3b426c0f86f8
+    - M4 SSE 事件结构不一致 → _emit_progress 统一为 {stage, percent, message, extra?}
+    - M5 素材分页 total 错误 → 新增 repo.count() 查询真实总数
+    - M6 健康检查超时不 kill → waitForHealth 失败时终止子进程
+    - M10 素材/回收站 API 无审计日志 → create/update/delete_material + restore_item 记录 AppEvent
+    - M13 导出文件路径穿越 → render_download 添加 ensure_within_project 校验
+    - M14 定时任务无重试 → purge 添加 3 次重试 + conflict 标记
+    - M18 素材上传无大小限制 → 添加 10MB 限制返回 413
+    - M20 日志无统一配置 → main.py 添加 logging.basicConfig
+  - 全部测试通过（pytest 280 + vitest 40）；缺陷修复流程已写入 PROJECT_RULES.md 第 14 条
 - 纪律复核：
   - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8~21 已遵守）
   - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8~21 已遵守）
