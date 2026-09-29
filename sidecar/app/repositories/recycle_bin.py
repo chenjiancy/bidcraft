@@ -182,7 +182,15 @@ class RecycleBinRepository:
 
         try:
             if item_type == "enterprise":
-                # 删除企业目录
+                # 删除企业目录 + 企业行
+                from app.models.enterprise import Enterprise
+
+                ent = self.session.execute(
+                    select(Enterprise).where(Enterprise.id == ref_id)
+                ).scalar_one_or_none()
+                if ent:
+                    self.session.delete(ent)
+
                 from app.parse import paths as path_utils
 
                 ent_dir = path_utils.data_root() / "enterprises" / ref_id
@@ -192,12 +200,18 @@ class RecycleBinRepository:
                     shutil.rmtree(ent_dir, ignore_errors=True)
 
             elif item_type == "project":
-                from app.parse import paths as path_utils
+                # 删除项目行 + 项目目录
+                from app.models.project import Project
 
-                proj_dir = path_utils.project_dir(ref_id, ref_id)  # 这里需要 enterprise_id
-                # 从配置或其他地方获取 enterprise_id
-                # 实际上 ref_id 是项目 id，enterprise_id 在 instance.enterprise_id
+                proj = self.session.execute(
+                    select(Project).where(Project.id == ref_id)
+                ).scalar_one_or_none()
+                if proj:
+                    self.session.delete(proj)
+
                 if enterprise_id:
+                    from app.parse import paths as path_utils
+
                     proj_dir = path_utils.project_dir(enterprise_id, ref_id)
                     if proj_dir.exists():
                         import shutil
@@ -205,21 +219,30 @@ class RecycleBinRepository:
                         shutil.rmtree(proj_dir, ignore_errors=True)
 
             elif item_type == "material":
-                # 删除素材文件
+                # 删除素材行 + 素材文件
+                from app.models.material import Material
+
+                mat = self.session.execute(
+                    select(Material).where(Material.id == ref_id)
+                ).scalar_one_or_none()
+                if mat:
+                    self.session.delete(mat)
+
                 if instance.file_path:
                     fp = Path(instance.file_path)
                     if fp.exists():
                         fp.unlink()
 
             elif item_type == "template":
-                # 模板文件在 path 字段，从 template 表读取路径并删除
-                if enterprise_id:
-                    from app.models.template import Template
+                # 删除模板行 + 模板目录
+                from app.models.template import Template
 
-                    tpl = self.session.execute(
-                        select(Template).where(Template.id == ref_id)
-                    ).scalar_one_or_none()
-                    if tpl and tpl.path:
+                tpl = self.session.execute(
+                    select(Template).where(Template.id == ref_id)
+                ).scalar_one_or_none()
+                if tpl:
+                    self.session.delete(tpl)
+                    if tpl.path:
                         from app.parse import paths as path_utils
 
                         tpl_path = path_utils.data_root() / tpl.path
@@ -228,7 +251,7 @@ class RecycleBinRepository:
 
                             shutil.rmtree(tpl_path, ignore_errors=True)
 
-            # 从数据库中物理删除该记录
+            # 从回收站表中物理删除该记录
             self.session.delete(instance)
             self.session.commit()
             return {"purged": True}
