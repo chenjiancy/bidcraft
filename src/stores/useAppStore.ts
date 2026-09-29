@@ -13,13 +13,32 @@ const PARSE_CONFIRMED_STATUSES = [
   'FORMAT_CONFIRMED',
   'MATERIAL_LOOP',
   'MATERIAL_CONFIRMED',
+  'TEMPLATE_MATCHED',
+  'TEMPLATE_REVIEW',
+  'READY_TO_RENDER',
 ]
 
 /**
  * 视为「业务模块已解锁」的解析状态集合（格式清单已确认）。
- * Task 14：FORMAT_CONFIRMED 解锁；Task 16：进入/完成素材提取循环后仍保持解锁。
+ * Task 14：FORMAT_CONFIRMED 解锁；Task 16：进入/完成素材提取循环后仍保持解锁；
+ * Task 18：进入模板匹配（TEMPLATE_MATCHED 起）后仍保持解锁。
  */
-const UNLOCKED_FORMAT_STATUSES = ['FORMAT_CONFIRMED', 'MATERIAL_LOOP', 'MATERIAL_CONFIRMED']
+const UNLOCKED_FORMAT_STATUSES = [
+  'FORMAT_CONFIRMED',
+  'MATERIAL_LOOP',
+  'MATERIAL_CONFIRMED',
+  'TEMPLATE_MATCHED',
+  'TEMPLATE_REVIEW',
+  'READY_TO_RENDER',
+]
+
+/** 视为「素材提取清单已确认」的状态集合（MATERIAL_CONFIRMED 及其后续模板匹配状态）。 */
+const MATERIAL_CONFIRMED_STATUSES = [
+  'MATERIAL_CONFIRMED',
+  'TEMPLATE_MATCHED',
+  'TEMPLATE_REVIEW',
+  'READY_TO_RENDER',
+]
 
 export interface EnterpriseSummary {
   id: string
@@ -94,12 +113,12 @@ export const useAppStore = create<AppState>()(
         set({
           formatStatus,
           isFormatListConfirmed: UNLOCKED_FORMAT_STATUSES.includes(formatStatus ?? ''),
-          isMaterialConfirmed: formatStatus === 'MATERIAL_CONFIRMED',
+          isMaterialConfirmed: MATERIAL_CONFIRMED_STATUSES.includes(formatStatus ?? ''),
         }),
       setMaterialStatus: (materialStatus) =>
         set({
           materialStatus,
-          isMaterialConfirmed: materialStatus === 'MATERIAL_CONFIRMED',
+          isMaterialConfirmed: MATERIAL_CONFIRMED_STATUSES.includes(materialStatus ?? ''),
         }),
       // 切换企业时清空当前项目并重置解析确认（项目隔离边界 + 门禁安全）
       setCurrentEnterprise: (currentEnterprise) =>

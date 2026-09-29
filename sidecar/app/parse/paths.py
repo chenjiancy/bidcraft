@@ -200,6 +200,28 @@ def init_project_materials_dirs(enterprise_id: str, project_id: str) -> list[Pat
     return [pm, inbox]
 
 
+# ---------- Task 18：模板比对目录布局 ----------
+
+_TEMPLATE_WORK = "template-work"
+
+
+def template_work_dir(enterprise_id: str, project_id: str) -> Path:
+    """项目模板工作目录：template-work/（从企业模板库复制过来）。"""
+    return project_dir(enterprise_id, project_id) / _TEMPLATE_WORK
+
+
+def template_compare_path(enterprise_id: str, project_id: str) -> Path:
+    """template_compare.json：关联表与比对摘要（磁盘持久化备份）。"""
+    return parse_dir(enterprise_id, project_id) / "template_compare.json"
+
+
+def init_template_work_dir(enterprise_id: str, project_id: str) -> Path:
+    """确保 template-work/ 目录存在。"""
+    d = template_work_dir(enterprise_id, project_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 # ---------- Task 17：模板库目录布局 ----------
 
 _TEMPLATE = "templates"
