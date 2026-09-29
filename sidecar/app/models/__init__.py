@@ -10,6 +10,7 @@ from app.models.parse_config import ParseProjectConfig
 from app.models.project import Project
 from app.models.recycle_bin import RecycleBin
 from app.models.template import Template
+from app.models.template_compare import TemplateCompare
 
 __all__ = [
     "AppEvent",
@@ -22,4 +23,5 @@ __all__ = [
     "Project",
     "RecycleBin",
     "Template",
+    "TemplateCompare",
 ]

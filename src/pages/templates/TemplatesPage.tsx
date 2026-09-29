@@ -72,7 +72,6 @@ export default function TemplatesPage() {
       setLoading(true)
       try {
         const res = await api.listTemplates(currentEnterprise.id, {
-          agency: agency || undefined,
           doc_type: docType || undefined,
           name: nameFilter || undefined,
         })
