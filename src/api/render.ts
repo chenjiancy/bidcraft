@@ -126,8 +126,10 @@ export function startRender(
   return window.bid.sidecar.stream(
     route(enterpriseId, projectId, 'start'),
     { re_render: false },
-    onProgress,
-  ) as Promise<RenderProgressEvent>
+    (event) => {
+      onProgress(event as unknown as RenderProgressEvent)
+    },
+  ) as unknown as Promise<RenderProgressEvent>
 }
 
 export function cancelRender(

@@ -491,7 +491,7 @@ export default function RenderPage() {
           )}
           {rendering && (
             <Alert
-              type="processing"
+              type="info"
               showIcon
               message={`渲染进行中…当前章节：${status?.current_chapter ?? '-'}`}
               description="可点击「取消渲染」中止；取消后回退到 READY_TO_RENDER 状态。"
