@@ -17,10 +17,24 @@ export interface SidecarHealthResult {
   error?: string
 }
 
+export interface UpdateStatusEvent {
+  status: 'checking' | 'available' | 'not_available' | 'downloaded' | 'error'
+  message?: string
+}
+
+export interface UpdateDownloadProgress {
+  percent: number
+}
+
 export interface BidAPI {
   app: {
     getVersion: () => Promise<string>
     getUserDataPath: () => Promise<string>
+  }
+  update: {
+    checkForUpdates: () => Promise<{ ok: boolean }>
+    onStatus: (cb: (payload: UpdateStatusEvent) => void) => () => void
+    onDownloadProgress: (cb: (payload: UpdateDownloadProgress) => void) => () => void
   }
   sidecar: {
     health: () => Promise<SidecarHealthResult>

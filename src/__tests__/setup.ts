@@ -67,6 +67,14 @@ window.bid = {
     getVersion: () => Promise.resolve('0.0.0'),
     getUserDataPath: () => Promise.resolve(''),
   },
+  update: {
+    checkForUpdates: () => Promise.resolve({ ok: true }),
+    onStatus: (cb: (payload: unknown) => void) => {
+      cb({ status: 'not_available' })
+      return () => {}
+    },
+    onDownloadProgress: () => () => {},
+  },
   sidecar: {
     health: () => Promise.resolve({ status: 'healthy' }),
     call: (route: string, payload?: unknown, method?: string) => {

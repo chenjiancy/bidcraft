@@ -9,6 +9,7 @@ import {
   stopSidecar,
 } from './sidecar'
 import { initUpdater } from './updater'
+import { autoUpdater } from 'electron-updater'
 import { registerCredIpc } from './cred'
 
 // dev/prod 环境检测（architecture.md 10.1）：
@@ -21,8 +22,11 @@ const useDevRunner = !app.isPackaged
 // 必须在 app.whenReady() 之前设置，使 userData 分流到不同目录
 app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp')
 
+// 主窗口引用（updater 需要向它发送事件）
+let mainWindow: BrowserWindow | null = null
+
 function createWindow(): void {
-  const mainWindow = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
@@ -37,7 +41,7 @@ function createWindow(): void {
     },
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow.show())
+  mainWindow!.on('ready-to-show', () => mainWindow!.show())
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -238,8 +242,13 @@ app.whenReady().then(() => {
     console.error('[main] sidecar 启动失败：', err),
   )
 
-  // 自动更新框架入口（仅依赖与配置；检查更新/安装逻辑发布前完善）
-  initUpdater()
+  // 自动更新：静默后台下载 + app 退出时自动安装
+  if (mainWindow) initUpdater(mainWindow)
+  // 允许前端主动触发版本检查
+  ipcMain.handle('update:check', () => {
+    autoUpdater.checkForUpdates()
+    return { ok: true }
+  })
 
   createWindow()
 

@@ -5,6 +5,29 @@ const api = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
     getUserDataPath: (): Promise<string> => ipcRenderer.invoke('app:getPath', 'userData'),
   },
+  update: {
+    /** 主动触发版本检查，结果通过 onStatus / onDownloadProgress 回调接收 */
+    checkForUpdates: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('update:check'),
+    /**
+     * 监听更新状态事件：{ status: 'checking'|'available'|'not_available'|'downloaded'|'error', message? }
+     * 返回清理函数，在组件卸载时调用。
+     */
+    onStatus: (cb: (payload: unknown) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: unknown): void => cb(payload)
+      ipcRenderer.on('update:status', listener as Parameters<typeof ipcRenderer.on>[1])
+      return () => ipcRenderer.removeListener('update:status', listener)
+    },
+    /**
+     * 监听下载进度：{ percent: number }
+     * 返回清理函数，在组件卸载时调用。
+     */
+    onDownloadProgress: (cb: (payload: { percent: number }) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: { percent: number }): void =>
+        cb(payload)
+      ipcRenderer.on('update:download-progress', listener as Parameters<typeof ipcRenderer.on>[1])
+      return () => ipcRenderer.removeListener('update:download-progress', listener)
+    },
+  },
   sidecar: {
     /** 查询 Python 健康状态（含 Main 侧状态机与实际 /health 响应） */
     health: (): Promise<unknown> => ipcRenderer.invoke('sidecar:health'),
