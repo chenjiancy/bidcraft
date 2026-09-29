@@ -283,11 +283,14 @@ def test_llm_validate_missing_api_key_marks_error_but_parsed(
     assert events[-1]["stage"] == "completed"
 
     status = db_client.get(f"/api/v1/enterprises/{eid}/projects/{pid}/parse/status").json()
-    assert status["parse_status"] == "PARSED"
+    # Task 11：score:extract 恒有且成功 → SCORE_PARSED
+    assert status["parse_status"] == "SCORE_PARSED"
     items = {i["key"]: i for i in status["checkpoint"]["items"]}
     assert items["extract:coarse"]["state"] == "success"
     assert items["extract:llm"]["state"] == "error"
     assert "API Key" in (items["extract:llm"]["error"] or "")
+    assert items["score:extract"]["state"] == "success"
+    assert items["score:llm"]["state"] == "error"  # 缺 API Key
 
 
 # ---------- TR-9.4/Task 10：配置变更 → 单项重试 ----------
@@ -311,8 +314,8 @@ def test_config_change_affects_extract_items_only(
     )
     assert resp.status_code == 200
     data = resp.json()
-    # 物理层不受影响；extract:coarse 在受影响清单（llm 未启用故无 extract:llm）
-    assert data["affected_items"] == ["extract:coarse"]
+    # 物理层不受影响；Task 11 起受影响项含 score:extract（llm 未启用故无 *:llm）
+    assert data["affected_items"] == ["extract:coarse", "score:extract"]
     assert data["reparse_required"] is True
 
     # 单项重试 extract:coarse → 级联清 extract_list.json，续跑后重建

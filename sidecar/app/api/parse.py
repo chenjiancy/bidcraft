@@ -264,7 +264,10 @@ def update_parse_config(
             affected = [k for k in affected if k in store.items]
         else:
             affected = []
-    reparse_required = bool(changes) and project.parse_status == parse_state.PARSED
+    reparse_required = bool(changes) and project.parse_status in (
+        parse_state.PARSED,
+        parse_state.SCORE_PARSED,
+    )
     return ParseConfigSavedOut(
         config=_config_to_out(new_cfg, is_default=False),
         reparse_required=reparse_required,

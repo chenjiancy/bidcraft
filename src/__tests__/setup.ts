@@ -90,6 +90,7 @@ window.bid = {
           chapters: null,
           dedupe: null,
           extraction: null,
+          score: null,
         })
       if (route.endsWith('/parse/config')) {
         const base = defaultParseConfig()

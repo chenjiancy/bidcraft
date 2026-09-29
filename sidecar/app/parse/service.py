@@ -32,7 +32,7 @@ from app.core.tasks import registry
 from app.parse import chapters as chapters_mod
 from app.parse import config as parse_config
 from app.parse import dedupe as dedupe_mod
-from app.parse import engine, llm_validate, paths, preprocess, state
+from app.parse import engine, llm_validate, paths, preprocess, score_llm, state
 from app.parse.checkpoint import CheckpointStore
 from app.parse.dedupe import SourceFile
 from app.repositories.app_event import AppEventRepository
@@ -41,6 +41,8 @@ from app.repositories.config_kv import ConfigKVRepository
 from app.repositories.parse_config import ParseConfigRepository
 from app.repositories.project import ProjectRepository
 from app.rules import extract as rules_extract
+from app.rules.scoring import extract as scoring_extract
+from app.rules.scoring import schema as scoring_schema
 
 JOB_TYPE = "document_parse"
 _SOURCES_FILE = "sources.json"
@@ -53,7 +55,8 @@ _W_PREPROCESS_END = 20
 _W_VERIFY_END = 25
 _W_MINERU_END = 85
 _W_CHAPTERS_END = 92
-_W_EXTRACT_END = 96
+_W_EXTRACT_END = 94
+_W_SCORE_END = 97
 # LLM 校验收尾到 100
 
 # LLM 并发上限（校验模式批量项）
@@ -211,13 +214,14 @@ def register_sources(
     payload["updated_at"] = _now()
     _write_json(_sources_path(e_dir, p_dir), payload)
 
-    # 新文件使既有解析产物失效：清 checkpoint/dedupe/chapters/extract（raw/work 重跑覆盖）
+    # 新文件使既有解析产物失效：清 checkpoint/dedupe/chapters/extract/score（raw/work 重跑覆盖）
     ckpt = paths.checkpoints_dir(e_dir, p_dir) / f"{JOB_TYPE}.json"
     for stale in (
         ckpt,
         _dedupe_path(e_dir, p_dir),
         _chapters_path(e_dir, p_dir),
         paths.extract_list_path(e_dir, p_dir),
+        paths.score_table_path(e_dir, p_dir),
     ):
         if stale.is_file():
             stale.unlink()
@@ -385,8 +389,11 @@ async def run_parse(
         # dual_channel 推迟，按默认路径不调 LLM）
         cfg = _load_parse_config(factory, eid, pid)
         store._add_new_items({"extract:coarse": "规则粗分要素提取（规则库）"})
+        # Task 11：评分办法解析（恒有，依赖 extract:coarse 产出的评分章节）
+        store._add_new_items({"score:extract": "评分办法结构化抽取（规则库）"})
         if cfg.llm_enabled and cfg.llm_mode == parse_config.LLM_VALIDATE:
             store._add_new_items({"extract:llm": "LLM 校验（校验模式）"})
+            store._add_new_items({"score:llm": "评分表 LLM 专项校验（校验模式）"})
 
         _transition(factory, eid, pid, state.PARSING, reason="parse_started")
         emit({"stage": "progress", "percent": 0, "message": "解析任务开始"})
@@ -612,7 +619,43 @@ async def run_parse(
                 store.mark_error("extract:coarse", str(exc))
                 raise
 
-        # ---- stage 7: LLM 校验（Task 10，仅校验模式；失败不阻塞 PARSED） ----
+        # ---- stage 7: 评分办法结构化抽取（Task 11，确定性，恒有） ----
+        if store.get("score:extract").state != "success":
+            _check_cancel(cancel_event)
+            store.mark_running("score:extract")
+            try:
+                score_out = await _run_score_extract(eid, pid)
+                store.mark_success("score:extract", score_out)
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": _W_SCORE_END,
+                        "message": (
+                            f"评分办法解析完成：{score_out['categories']} 大类，"
+                            f"合计 {score_out['total_score']:g} 分"
+                            + (
+                                f"，{score_out['red_flags']} 条标红"
+                                if score_out["red_flags"]
+                                else ""
+                            )
+                        ),
+                    }
+                )
+            except Exception as exc:
+                # 评分解析失败不阻塞整跑：标 error + 留痕，终态仅其成功才升 SCORE_PARSED
+                store.mark_error("score:extract", str(exc))
+                _record_event(
+                    factory, eid, pid, "parse_score_extract_error", {"error": str(exc)[:500]}
+                )
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": _W_SCORE_END,
+                        "message": f"评分办法解析失败（不影响要素提取结果）：{str(exc)[:120]}",
+                    }
+                )
+
+        # ---- stage 8: LLM 校验（Task 10，仅校验模式；失败不阻塞 PARSED） ----
         if "extract:llm" in store.items and store.get("extract:llm").state != "success":
             _check_cancel(cancel_event)
             store.mark_running("extract:llm")
@@ -640,15 +683,53 @@ async def run_parse(
                     }
                 )
 
-        _transition(factory, eid, pid, state.PARSED, reason="parse_completed")
-        emit(
-            {
-                "stage": "completed",
-                "percent": 100,
-                "message": "招标文件解析完成",
-                "extra": {"checkpoint": store.summary()["state"]},
-            }
-        )
+        # ---- stage 9: 评分表 LLM 专项校验（Task 11，仅校验模式；失败不阻塞） ----
+        if "score:llm" in store.items and store.get("score:llm").state != "success":
+            _check_cancel(cancel_event)
+            store.mark_running("score:llm")
+            try:
+                score_llm_out = await _run_score_llm(factory, eid, pid, store, api_key)
+                store.mark_success("score:llm", score_llm_out)
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": 100,
+                        "message": "评分表 LLM 专项校验完成",
+                    }
+                )
+            except Exception as exc:
+                store.mark_error("score:llm", str(exc))
+                _record_event(factory, eid, pid, "parse_score_llm_error", {"error": str(exc)[:500]})
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": 100,
+                        "message": f"评分表 LLM 校验失败：{str(exc)[:120]}",
+                    }
+                )
+
+        # 终态：score:extract 成功 → SCORE_PARSED；否则退回到 PARSED（为兼容）
+        score_item = store.get("score:extract")
+        if score_item and score_item.state == "success":
+            _transition(factory, eid, pid, state.SCORE_PARSED, reason="score_extract_completed")
+            emit(
+                {
+                    "stage": "completed",
+                    "percent": 100,
+                    "message": "招标文件解析完成（含评分办法）",
+                    "extra": {"checkpoint": store.summary()["state"]},
+                }
+            )
+        else:
+            _transition(factory, eid, pid, state.PARSED, reason="parse_completed")
+            emit(
+                {
+                    "stage": "completed",
+                    "percent": 100,
+                    "message": "招标文件解析完成",
+                    "extra": {"checkpoint": store.summary()["state"]},
+                }
+            )
     except asyncio.CancelledError:
         _safe_transition(factory, eid, pid, state.UPLOADED, "parse_cancelled")
         emit(
@@ -867,6 +948,101 @@ async def _run_extract_llm(
     return {"validated": len(selected), "audit_status": audit["status"]}
 
 
+async def _run_score_extract(enterprise_id: str, project_id: str) -> dict[str, Any]:
+    """评分办法结构化抽取（Task 11，纯确定性）：产出 score_table.json。
+
+    依赖 extract_list.json 中 tech_score/business_score 的 matches（评分章节）。
+    产出后立即做 Schema 硬校验（TR-11.6），写入 schema_validated 标志位。
+    """
+    extract_payload = _read_json(paths.extract_list_path(enterprise_id, project_id), None)
+    if extract_payload is None:
+        raise ParseError("规则粗分结果缺失，请先从 extract:coarse 重试")
+
+    # 收集评分章节 matches（tech_score + business_score）
+    score_matches: list[dict[str, Any]] = []
+    for item in extract_payload.get("items", []):
+        if item.get("key") in ("tech_score", "business_score") and item.get("matches"):
+            score_matches.extend(item["matches"])
+
+    payload = await asyncio.to_thread(
+        scoring_extract.extract_score_table, score_matches, generated_at=_now()
+    )
+
+    # TR-11.6：Schema 硬校验门禁（通过写标志位，失败标红进修复循环）
+    ok, errors = await asyncio.to_thread(scoring_schema.validate_score_table, payload)
+    if not ok:
+        payload.setdefault("red_flags", []).append(
+            {
+                "type": "schema_invalid",
+                "detail": "score_table.json 未通过 Schema 硬校验，需人工修正",
+                "errors": errors[:20],
+            }
+        )
+    _write_json(paths.score_table_path(enterprise_id, project_id), payload)
+
+    total = payload["total_score_check"]["actual"]
+    return {
+        "categories": len(payload["categories"]),
+        "total_score": total,
+        "score_ok": payload["total_score_check"]["ok"],
+        "red_flags": len(payload["red_flags"]),
+        "schema_validated": ok,
+    }
+
+
+async def _run_score_llm(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    store: CheckpointStore,
+    api_key: str | None,
+) -> dict[str, Any]:
+    """评分表 LLM 专项校验（TR-11.7）：完整性/合计/门槛遗漏。失败抛异常由调用方标记。"""
+    with factory() as session:
+        kv = ConfigKVRepository(session)
+        base_url = kv.get_value("system", "llm.base_url")
+        model = kv.get_value("system", "llm.model")
+    if not api_key:
+        raise ParseError("已启用 LLM 校验模式，但未提供 API Key（请在模型配置中保存后重试）")
+    if not base_url or not model:
+        raise ParseError("已启用 LLM 校验模式，但模型配置不完整（base_url/model 未设置）")
+
+    score_path = paths.score_table_path(enterprise_id, project_id)
+    score_payload = _read_json(score_path, None)
+    if score_payload is None:
+        raise ParseError("评分表结果缺失，请先从 score:extract 重试")
+
+    # 评分办法原文片段（取 extract_list.json 中评分章节 snippet 拼接）
+    extract_payload = _read_json(paths.extract_list_path(enterprise_id, project_id), {})
+    snippets = [
+        str(m.get("snippet", ""))
+        for item in extract_payload.get("items", [])
+        if item.get("key") in ("tech_score", "business_score")
+        for m in (item.get("matches") or [])
+    ]
+    score_snippet = "\n\n".join(snippets)[:4000]
+
+    result = await asyncio.to_thread(
+        score_llm.validate_score,
+        score_payload,
+        score_snippet,
+        base_url,
+        model,
+        api_key,
+        factory,
+        project_id,
+    )
+    score_payload["llm"] = {
+        "enabled": True,
+        "mode": parse_config.LLM_VALIDATE,
+        "status": "done" if result["status"] == "ok" else "error",
+        "check": result.get("data"),
+        "error": result.get("error"),
+    }
+    _write_json(score_path, score_payload)
+    return {"status": result["status"]}
+
+
 def _safe_transition(
     factory: sessionmaker[Session],
     eid: str,
@@ -1052,6 +1228,19 @@ def _extract_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+def _score_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    return {
+        "categories": len(payload.get("categories", [])),
+        "total_score": payload.get("total_score_check", {}).get("actual"),
+        "score_ok": payload.get("total_score_check", {}).get("ok"),
+        "red_flags": len(payload.get("red_flags", [])),
+        "schema_validated": payload.get("schema_validated"),
+        "llm": payload.get("llm"),
+    }
+
+
 def get_status(
     factory: sessionmaker[Session],
     enterprise_id: str,
@@ -1078,6 +1267,9 @@ def get_status(
         "chapters": _read_json(_chapters_path(enterprise_id, project_id), None),
         "extraction": _extract_summary(
             _read_json(paths.extract_list_path(enterprise_id, project_id), None)
+        ),
+        "score": _score_summary(
+            _read_json(paths.score_table_path(enterprise_id, project_id), None)
         ),
         "checkpoint": checkpoint,
     }
@@ -1117,6 +1309,14 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
         if stale.is_file():
             stale.unlink()
 
+    def _reset_score() -> None:
+        for key in ("score:extract", "score:llm"):
+            if key in store.items:
+                store.reset(key)
+        stale = paths.score_table_path(enterprise_id, project_id)
+        if stale.is_file():
+            stale.unlink()
+
     if item == "extract:coarse":
         if "extract:llm" in store.items:
             store.reset("extract:llm")
@@ -1126,28 +1326,39 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
         _p = paths.extract_list_path(enterprise_id, project_id)
         if _p.is_file():
             _p.unlink()
+        _reset_score()  # 评分依赖粗分产出的评分章节
     elif item == "extract:llm":
+        pass
+    elif item == "score:extract":
+        if "score:llm" in store.items:
+            store.reset("score:llm")
+    elif item == "score:llm":
         pass
     elif item.startswith("mineru:"):
         store.reset(f"chapters:{item.split(':', 1)[1]}")
         _reset_extract()
+        _reset_score()
     elif item.startswith("chapters:"):
         _reset_extract()
+        _reset_score()
     elif item == "dedupe-verify":
         for key in [k for k in store.items if k.startswith("preprocess:")]:
             store.reset(key)
         _delete_all(("mineru:", "chapters:"))
         _reset_extract()
+        _reset_score()
     elif item.startswith("preprocess:"):
         store.reset("dedupe-verify")
         _delete_all(("mineru:", "chapters:"))
         _reset_extract()
+        _reset_score()
     elif item == "dedupe":
         store.reset("dedupe-verify")
         for key in [k for k in store.items if k.startswith("preprocess:")]:
             store.reset(key)
         _delete_all(("mineru:", "chapters:"))
         _reset_extract()
+        _reset_score()
     store.reset(item)
 
     # 上游重来时，汇总报告与章节总表作废（重跑后重新生成）

@@ -62,6 +62,10 @@ def extract_list_path(enterprise_id: str, project_id: str) -> Path:
     return parse_dir(enterprise_id, project_id) / "structured" / "extract_list.json"
 
 
+def score_table_path(enterprise_id: str, project_id: str) -> Path:
+    return parse_dir(enterprise_id, project_id) / "structured" / "score_table.json"
+
+
 def ensure_within_project(base: Path, target: Path) -> Path:
     """确保 target 解析后位于 base 之内，否则拒绝（防路径穿越）。"""
     base_resolved = base.resolve()

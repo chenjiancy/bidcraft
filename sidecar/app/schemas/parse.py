@@ -52,6 +52,8 @@ class ParseStatusOut(BaseModel):
     dedupe: dict[str, Any] | None = None
     # Task 10：extract_list.json 摘要（doc_type/items 统计/red_flags/llm 状态）
     extraction: dict[str, Any] | None = None
+    # Task 11：score_table.json 摘要（categories/total_score/合计校验/schema_validated/llm）
+    score: dict[str, Any] | None = None
 
 
 # ---------- Task 9：解析配置 ----------

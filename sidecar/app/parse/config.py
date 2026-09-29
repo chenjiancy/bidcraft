@@ -162,10 +162,12 @@ def affected_checkpoint_items(changes: dict[str, Any]) -> tuple[str, ...]:
 
     Task 10 起：要素提取项（extract:coarse 恒有；extract:llm 仅校验模式）
     消费本配置——勾选项或 LLM 开关/模式变化都需要重置它们以单项重试。
+    Task 11 起：评分项（score:extract 恒有；score:llm 仅校验模式）依赖粗分
+    产出的评分章节，配置差异同样需重置。
     物理层项（dedupe/preprocess:/mineru:/chapters:）不消费本配置，
     本函数永远不得返回物理层 item key。
     """
     if not changes:
         return ()
-    # 任何配置差异都影响要素层：勾选差异改变提取集合，LLM 差异改变校验行为
-    return ("extract:coarse", "extract:llm")
+    # 任何配置差异都影响要素层与评分层：勾选差异改变提取集合，LLM 差异改变校验行为
+    return ("extract:coarse", "extract:llm", "score:extract", "score:llm")

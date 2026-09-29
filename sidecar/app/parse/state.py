@@ -5,29 +5,34 @@
 - 每次转换写 ``app_event``（type=parse_state_change，payload 含 from/to/reason）；
 - 异常信息随事件与 checkpoint 留痕，不静默。
 
-后续 Task 扩展：PARSED → SCORE_PARSED（Task 11）
-→ PARSE_REVIEW → PARSE_CONFIRMED（Task 13）。
+Task 11 扩展：``PARSED → SCORE_PARSED``（评分办法解析独立阶段留痕）。
+后续 Task 扩展：→ PARSE_REVIEW → PARSE_CONFIRMED（Task 13）。
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-ParseStatus = Literal["INIT", "UPLOADED", "PARSING", "PARSED"]
+ParseStatus = Literal["INIT", "UPLOADED", "PARSING", "PARSED", "SCORE_PARSED"]
 
 INIT: ParseStatus = "INIT"
 UPLOADED: ParseStatus = "UPLOADED"
 PARSING: ParseStatus = "PARSING"
 PARSED: ParseStatus = "PARSED"
+SCORE_PARSED: ParseStatus = "SCORE_PARSED"
 
 # 合法转换表（key=当前状态，value=可转入的状态集合）
 _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
     INIT: frozenset({UPLOADED}),
     UPLOADED: frozenset({PARSING}),
     # PARSING 自环：进程崩溃后状态残留 PARSING，续跑重新置位（幂等）
-    PARSING: frozenset({PARSING, PARSED, UPLOADED}),
+    # Task 11：PARSING → SCORE_PARSED（评分办法解析成功，一次跑完直达）
+    PARSING: frozenset({PARSING, PARSED, UPLOADED, SCORE_PARSED}),
     # PARSED 后允许重新解析（用户重新上传/重跑）：经 UPLOADED/PARSING
-    PARSED: frozenset({UPLOADED, PARSING}),
+    # Task 11：PARSED → SCORE_PARSED（评分解析）或重跑回 PARSING
+    PARSED: frozenset({UPLOADED, PARSING, SCORE_PARSED}),
+    # SCORE_PARSED 后允许重跑评分（回 PARSED）或重跑整解析（回 UPLOADED/PARSING）
+    SCORE_PARSED: frozenset({PARSED, UPLOADED, PARSING, SCORE_PARSED}),
 }
 
 
