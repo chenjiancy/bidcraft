@@ -233,6 +233,8 @@ def delete_material(enterprise_id: str, material_id: str, session: SessionDep) -
     try:
         m = repo.get(material_id)
         repo.soft_delete(material_id)
+        # M2 修复：同步删除 FTS5 索引
+        repo.delete_fts5_index(material_id, path_utils.fts5_db_path(enterprise_id))
         rb = RecycleBinRepository(session).add(
             item_type="material",
             ref_id=material_id,

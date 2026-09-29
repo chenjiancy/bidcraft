@@ -141,9 +141,13 @@ class MaterialRepository:
         material.indexed = True
 
     def delete_fts5_index(self, material_id: str, db_path) -> None:
-        """从 FTS5 虚表移除记录。"""
+        """从 FTS5 虚表移除记录（不检查 deleted_at，因为调用方可能已 soft_delete）。"""
         from app.materials.fts5 import fts5_remove  # 延迟导入防循环
 
-        material = self.get(material_id)
-        material.indexed = False
-        fts5_remove(db_path, material.id)
+        # 直接查询，不经过 _filter（已 soft_delete 的记录也要能删索引）
+        material = self._session.execute(
+            select(Material).where(Material.id == material_id)
+        ).scalar_one_or_none()
+        if material:
+            material.indexed = False
+        fts5_remove(db_path, material_id)

@@ -97,6 +97,7 @@ class RecycleBinRepository:
         from app.models.template import Template
         from app.repositories.base import Scope
         from app.repositories.enterprise import EnterpriseRepository
+        from app.repositories.material import MaterialRepository
         from app.repositories.project import ProjectRepository
 
         instance = self.get(bin_id)
@@ -149,6 +150,12 @@ class RecycleBinRepository:
             )
             if result.rowcount == 0:
                 return instance, {"restored": False, "action": "error", "error": "素材不存在"}
+            # M2 修复：恢复时同步重建 FTS5 索引
+            from app.parse import paths as path_utils
+
+            assert instance.enterprise_id is not None, "素材回收站项缺少企业归属"
+            mat_repo = MaterialRepository(self.session, Scope(enterprise_id=instance.enterprise_id))
+            mat_repo.reindex_fts5(ref_id, path_utils.fts5_db_path(instance.enterprise_id))
 
         elif item_type == "template":
             result = cast(
