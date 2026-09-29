@@ -521,7 +521,7 @@
   - 样本已就绪（含模板文件集、parsed/ 章节的项目）。
 
 ## Task 19: docxtpl 逐章渲染（渲染计划、图片闭环、占位警告、一致性审计）
-- **Status**: 进行中 ✅ (t19-0~t19-11 后端 + t19-12 前端已编码完成，待 PR)
+- **Status**: completed ✅ (PR #44, squash 合并待确认)
 - **Priority**: high
 - **Depends On**: Task 18
 - **Description**:
