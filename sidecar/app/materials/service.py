@@ -156,9 +156,8 @@ def archive_material(
     # Step 6.5: 写入 FTS5 索引（Task 16 查询依据）
     _index_material(enterprise_id, material)
 
-    # Step 7: 清理收件箱
-    if original_path.exists():
-        original_path.unlink()
+    # Step 7: 清理收件箱（C2 修复：归档成功后不删除用户源文件，收件箱由用户/定时清理管理）
+    # 删除源文件会导致用户无法取回原始文件，且中途失败时源文件丢失。
 
     session.commit()
     return material
