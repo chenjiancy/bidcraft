@@ -35,6 +35,8 @@ function makeCallMock(
     extraction?: Record<string, unknown> | null
     score?: Record<string, unknown> | null
     docx?: Record<string, unknown> | null
+    confirmed?: Record<string, unknown> | null
+    checklist?: Record<string, unknown> | null
   } = {},
 ): ReturnType<typeof vi.fn> {
   return vi.fn((route: string, payload?: unknown, method?: string) => {
@@ -51,6 +53,31 @@ function makeCallMock(
         extraction: opts.extraction ?? null,
         score: opts.score ?? null,
         docx: opts.docx ?? null,
+        confirmed: opts.confirmed ?? null,
+      })
+    if (route.endsWith('/parse/checklist'))
+      return Promise.resolve(
+        opts.checklist ?? {
+          parse_status: opts.status ?? 'INIT',
+          extraction: null,
+          score: null,
+          docx: null,
+          confirmed: null,
+          review_state: null,
+        },
+      )
+    if (route.endsWith('/parse/review'))
+      return Promise.resolve({
+        parse_status: 'PARSE_REVIEW',
+        review_started_at: '2026-09-29T00:00:00Z',
+      })
+    if (route.endsWith('/parse/confirm'))
+      return Promise.resolve({
+        parse_status: 'PARSE_CONFIRMED',
+        confirmed_at: '2026-09-29T00:00:00Z',
+        checklist_path: 'parse/confirmed/parse_checklist.json',
+        total_items: 1,
+        confirmed_items: 1,
       })
     if (route.endsWith('/parse/config') && method === 'PUT') {
       const p = (payload ?? {}) as { selected?: string[]; llm_enabled?: boolean; llm_mode?: string }
@@ -101,6 +128,8 @@ async function renderParsePage(
     extraction?: Record<string, unknown> | null
     score?: Record<string, unknown> | null
     docx?: Record<string, unknown> | null
+    confirmed?: Record<string, unknown> | null
+    checklist?: Record<string, unknown> | null
   } = {},
 ) {
   const callMock = makeCallMock(opts)
@@ -299,11 +328,13 @@ describe('Task 9: 解析配置面板', () => {
     expect(screen.getByText('done')).toBeInTheDocument()
   })
 
-  it('TR-11.8: SCORE_PARSED 视为解析完成并解锁门禁', async () => {
+  it('TR-11.8: SCORE_PARSED 视为解析完成，门禁未解锁需进入复核（Task 13）', async () => {
     await renderParsePage({ status: 'SCORE_PARSED' })
     await screen.findByText('解析配置')
     expect(screen.getByText('SCORE_PARSED')).toBeInTheDocument()
-    await screen.findByText(/解析清单已确认/)
+    // Task 13：SCORE_PARSED 不再自动解锁，显示"进入清单复核"按钮
+    expect(screen.getByRole('button', { name: /进入清单复核/ })).toBeInTheDocument()
+    expect(screen.queryByText(/解析清单已确认/)).not.toBeInTheDocument()
   })
 
   it('TR-11.5/11.6: 评分表摘要展示大类/合计/结构校验，合计≠100 标红', async () => {

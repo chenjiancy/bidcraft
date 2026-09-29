@@ -1,6 +1,6 @@
 """招标文件解析 API schemas（Task 8）。"""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -56,6 +56,52 @@ class ParseStatusOut(BaseModel):
     score: dict[str, Any] | None = None
     # Task 12：投标文件格式逐章 docx 摘要（files/cover/completed/errors/red_flags）
     docx: dict[str, Any] | None = None
+    # Task 13：已确认清单摘要（confirmed_at/total_items/confirmed_items/all_confirmed）
+    confirmed: dict[str, Any] | None = None
+
+
+# ---------- Task 13：解析清单复核与确认 ----------
+
+
+class ParseChecklistOut(BaseModel):
+    """GET /parse/checklist：返回三类产物的全量 payload 供前端复核。"""
+
+    parse_status: str
+    extraction: dict[str, Any] | None = None
+    score: dict[str, Any] | None = None
+    docx: dict[str, Any] | None = None
+    confirmed: dict[str, Any] | None = None
+    review_state: dict[str, Any] | None = None
+
+
+class ParseConfirmItem(BaseModel):
+    """单条目确认状态（前端回传）。"""
+
+    tab: Literal["extraction", "score", "docx"]
+    item_id: str
+    confirmed: bool
+    override: dict[str, Any] | None = None
+    deleted: bool = False
+
+
+class ParseConfirmIn(BaseModel):
+    """POST /parse/confirm 请求体。"""
+
+    items: list[ParseConfirmItem] = Field(..., min_length=1)
+    extraction: dict[str, Any] | None = None
+    score: dict[str, Any] | None = None
+    docx: dict[str, Any] | None = None
+    note: str | None = Field(default=None, max_length=500)
+
+
+class ParseConfirmOut(BaseModel):
+    """POST /parse/confirm 响应。"""
+
+    parse_status: str
+    confirmed_at: str
+    checklist_path: str
+    total_items: int
+    confirmed_items: int
 
 
 # ---------- Task 9：解析配置 ----------

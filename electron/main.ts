@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { basename, join } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { isTerminalStage, parseSSE, type ProgressEvent } from './lib/sse'
 import {
   getSidecarHandle,
@@ -188,6 +188,33 @@ app.whenReady().then(() => {
 
   registerSidecarIpc()
   registerCredIpc()
+
+  // Task 13：用系统默认应用打开 docx 文件（路径穿越防护）
+  ipcMain.handle(
+    'shell:openDocxFile',
+    async (_event, enterpriseId: string, projectId: string, sourceStem: string, file: string) => {
+      const base = join(
+        app.getPath('userData'),
+        'enterprises',
+        enterpriseId,
+        'projects',
+        projectId,
+        'parse',
+        'docx',
+      )
+      // safe_filename 等价：清洗非法字符（与 sidecar paths.safe_filename 同构）
+      const safeStem = sourceStem.replace(/[<>:"/\\|?*]/g, '_').slice(0, 180)
+      const safeFile = file.replace(/[<>:"/\\|?*]/g, '_').slice(0, 180)
+      const absPath = resolve(base, safeStem, safeFile)
+      // 路径穿越防护：resolve 后必须在 docx 目录内
+      const expectedPrefix = resolve(base) + sep
+      if (!absPath.startsWith(expectedPrefix)) {
+        throw new Error(`路径越权: ${file}`)
+      }
+      const result = await shell.openPath(absPath)
+      return { opened: !result, path: absPath }
+    },
+  )
 
   // sidecar 自动拉起（随机端口 + 本地令牌 + 健康检查 + 崩溃检测）
   startSidecar(useDevRunner, app.getPath('userData')).catch((err: unknown) =>

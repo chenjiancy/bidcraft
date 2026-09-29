@@ -45,6 +45,16 @@ const api = {
     openBidFiles: (): Promise<Array<{ name: string; path: string }>> =>
       ipcRenderer.invoke('dialog:openBidFiles'),
   },
+  shell: {
+    /** Task 13：用系统默认应用打开 docx 文件（路径校验在 Main 侧） */
+    openDocxFile: (
+      enterpriseId: string,
+      projectId: string,
+      sourceStem: string,
+      file: string,
+    ): Promise<{ opened: boolean; path: string }> =>
+      ipcRenderer.invoke('shell:openDocxFile', enterpriseId, projectId, sourceStem, file),
+  },
   cred: {
     /** 保存 API Key（DPAPI 加密存储） */
     setApiKey: (apiKey: string): Promise<{ success: boolean }> =>

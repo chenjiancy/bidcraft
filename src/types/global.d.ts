@@ -35,6 +35,14 @@ export interface BidAPI {
   dialog: {
     openBidFiles: () => Promise<Array<{ name: string; path: string }>>
   }
+  shell: {
+    openDocxFile: (
+      enterpriseId: string,
+      projectId: string,
+      sourceStem: string,
+      file: string,
+    ) => Promise<{ opened: boolean; path: string }>
+  }
   cred: {
     setApiKey: (apiKey: string) => Promise<{ success: boolean }>
     getApiKey: () => Promise<string | null>

@@ -35,10 +35,13 @@ from app.repositories.parse_config import ParseConfigRepository
 from app.repositories.project import ProjectRepository
 from app.schemas.parse import (
     EngineStatusOut,
+    ParseChecklistOut,
     ParseConfigItemOut,
     ParseConfigOut,
     ParseConfigSavedOut,
     ParseConfigUpdate,
+    ParseConfirmIn,
+    ParseConfirmOut,
     ParseRetryIn,
     ParseStartIn,
     ParseStatusOut,
@@ -290,7 +293,75 @@ def parse_retry(
     if job_manager.is_running(enterprise_id, project_id):
         raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
     try:
-        service.reset_item(enterprise_id, project_id, body.item)
+        service.reset_item(session_factory(get_engine()), enterprise_id, project_id, body.item)
     except ParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None
     return {"reset": True, "item": body.item}
+
+
+# ---------- Task 13：解析清单复核与确认 ----------
+
+
+@router.get(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/checklist",
+    response_model=ParseChecklistOut,
+)
+def parse_checklist(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> dict[str, object]:
+    """获取三类产物全量数据供前端清单复核。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    try:
+        return service.get_checklist(session_factory(get_engine()), enterprise_id, project_id)
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/review",
+)
+def parse_enter_review(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> dict[str, object]:
+    """进入清单复核（SCORE_PARSED → PARSE_REVIEW）。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        return service.enter_review(session_factory(get_engine()), enterprise_id, project_id)
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/confirm",
+    response_model=ParseConfirmOut,
+)
+def parse_confirm(
+    enterprise_id: str,
+    project_id: str,
+    body: ParseConfirmIn,
+    session: SessionDep,
+) -> ParseConfirmOut:
+    """保存确认后的清单并解锁业务模块。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        result = service.confirm_checklist(
+            session_factory(get_engine()),
+            enterprise_id,
+            project_id,
+            [i.model_dump() for i in body.items],
+            extraction=body.extraction,
+            score=body.score,
+            docx=body.docx,
+            note=body.note,
+        )
+        return ParseConfirmOut(**result)
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None

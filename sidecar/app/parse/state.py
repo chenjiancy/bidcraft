@@ -1,4 +1,4 @@
-"""解析阶段项目级状态机（EM-5，architecture.md 6.1 的 Task 8 部分）。
+"""解析阶段项目级状态机（EM-5，architecture.md 6.1）。
 
 本 Task 落地：``INIT → UPLOADED → PARSING → PARSED``
 - PARSING 失败/取消 → 回 UPLOADED（已成功的 checkpoint 项保留，可续跑）；
@@ -6,20 +6,31 @@
 - 异常信息随事件与 checkpoint 留痕，不静默。
 
 Task 11 扩展：``PARSED → SCORE_PARSED``（评分办法解析独立阶段留痕）。
-后续 Task 扩展：→ PARSE_REVIEW → PARSE_CONFIRMED（Task 13）。
+Task 13 扩展：``SCORE_PARSED → PARSE_REVIEW → PARSE_CONFIRMED``
+（人工确认清单后解锁业务模块；上游重解析/重试使确认作废，回退 SCORE_PARSED）。
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-ParseStatus = Literal["INIT", "UPLOADED", "PARSING", "PARSED", "SCORE_PARSED"]
+ParseStatus = Literal[
+    "INIT",
+    "UPLOADED",
+    "PARSING",
+    "PARSED",
+    "SCORE_PARSED",
+    "PARSE_REVIEW",
+    "PARSE_CONFIRMED",
+]
 
 INIT: ParseStatus = "INIT"
 UPLOADED: ParseStatus = "UPLOADED"
 PARSING: ParseStatus = "PARSING"
 PARSED: ParseStatus = "PARSED"
 SCORE_PARSED: ParseStatus = "SCORE_PARSED"
+PARSE_REVIEW: ParseStatus = "PARSE_REVIEW"
+PARSE_CONFIRMED: ParseStatus = "PARSE_CONFIRMED"
 
 # 合法转换表（key=当前状态，value=可转入的状态集合）
 _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
@@ -32,7 +43,12 @@ _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
     # Task 11：PARSED → SCORE_PARSED（评分解析）或重跑回 PARSING
     PARSED: frozenset({UPLOADED, PARSING, SCORE_PARSED}),
     # SCORE_PARSED 后允许重跑评分（回 PARSED）或重跑整解析（回 UPLOADED/PARSING）
-    SCORE_PARSED: frozenset({PARSED, UPLOADED, PARSING, SCORE_PARSED}),
+    # Task 13：→ PARSE_REVIEW（进入清单复核）
+    SCORE_PARSED: frozenset({PARSED, UPLOADED, PARSING, SCORE_PARSED, PARSE_REVIEW}),
+    # Task 13：PARSE_REVIEW → PARSE_CONFIRMED（全部确认）；→ SCORE_PARSED（上游重试回退）
+    PARSE_REVIEW: frozenset({SCORE_PARSED, PARSE_CONFIRMED}),
+    # Task 13：PARSE_CONFIRMED 后允许重解析（回退使确认失效）
+    PARSE_CONFIRMED: frozenset({SCORE_PARSED, PARSED, UPLOADED, PARSING}),
 }
 
 
