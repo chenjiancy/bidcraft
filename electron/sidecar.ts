@@ -106,13 +106,14 @@ export async function startSidecar(
   await waitForHealth(port).catch(async (err) => {
     // M6 修复：健康检查超时/失败时终止侧车进程，避免僵尸进程
     status = 'crashed'
-    if (child?.pid) {
+    const c = child
+    if (c?.pid) {
       if (process.platform === 'win32') {
         await new Promise<void>((resolve) => {
-          execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => resolve())
+          execFile('taskkill', ['/pid', String(c.pid), '/T', '/F'], () => resolve())
         })
       } else {
-        child.kill()
+        c.kill()
       }
     }
     child = null

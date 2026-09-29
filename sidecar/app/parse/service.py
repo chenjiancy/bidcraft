@@ -243,7 +243,7 @@ def register_sources(
         # 重新登记文件意味着解析输入已变，必须回退状态并删除产物（已在上面的清理中完成）
         if current not in (state.INIT, state.UPLOADED):
             target = state.UPLOADED
-            state.ensure_transition(current, target)
+            state.ensure_transition(current, target)  # type: ignore[arg-type]
             project.parse_status = target
             AppEventRepository(session, Scope(enterprise_id=enterprise_id)).record(
                 "parse_state_change",
