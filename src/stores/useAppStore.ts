@@ -3,6 +3,24 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 
 export type ThemeMode = 'light' | 'dark'
 
+/**
+ * 视为「解析清单已确认」的解析状态集合（PARSE_CONFIRMED 及其之后的全部状态）。
+ * 用于商务标模块门禁：PARSE_CONFIRMED 起即可进入 /bid 完成格式清单复核。
+ */
+const PARSE_CONFIRMED_STATUSES = [
+  'PARSE_CONFIRMED',
+  'FORMAT_REVIEW',
+  'FORMAT_CONFIRMED',
+  'MATERIAL_LOOP',
+  'MATERIAL_CONFIRMED',
+]
+
+/**
+ * 视为「业务模块已解锁」的解析状态集合（格式清单已确认）。
+ * Task 14：FORMAT_CONFIRMED 解锁；Task 16：进入/完成素材提取循环后仍保持解锁。
+ */
+const UNLOCKED_FORMAT_STATUSES = ['FORMAT_CONFIRMED', 'MATERIAL_LOOP', 'MATERIAL_CONFIRMED']
+
 export interface EnterpriseSummary {
   id: string
   name: string
@@ -32,6 +50,12 @@ interface AppState {
    */
   formatStatus: string | undefined
   isFormatListConfirmed: boolean
+  /**
+   * 素材提取清单是否已确认保存（MATERIAL_CONFIRMED 门禁信号）。
+   * Task 16：由后端 parse_status === 'MATERIAL_CONFIRMED' 派生。
+   */
+  materialStatus: string | undefined
+  isMaterialConfirmed: boolean
   /** 当前企业（持久化，跨重启记住） */
   currentEnterprise: EnterpriseSummary | null
   /** 当前项目（不持久化，每次启动需重新选） */
@@ -41,6 +65,7 @@ interface AppState {
   setParseConfirmed: (confirmed: boolean) => void
   setParseStatus: (status: string | undefined) => void
   setFormatStatus: (status: string | undefined) => void
+  setMaterialStatus: (status: string | undefined) => void
   setCurrentEnterprise: (ent: EnterpriseSummary | null) => void
   setCurrentProject: (proj: ProjectSummary | null) => void
 }
@@ -53,15 +78,29 @@ export const useAppStore = create<AppState>()(
       parseStatus: undefined,
       formatStatus: undefined,
       isFormatListConfirmed: false,
+      materialStatus: undefined,
+      isMaterialConfirmed: false,
       currentEnterprise: null,
       currentProject: null,
       toggleTheme: () => set((s) => ({ themeMode: s.themeMode === 'light' ? 'dark' : 'light' })),
       setThemeMode: (themeMode) => set({ themeMode }),
       setParseConfirmed: (isParseConfirmed) => set({ isParseConfirmed }),
       setParseStatus: (parseStatus) =>
-        set({ parseStatus, isParseConfirmed: parseStatus === 'PARSE_CONFIRMED' }),
+        set({
+          parseStatus,
+          isParseConfirmed: PARSE_CONFIRMED_STATUSES.includes(parseStatus ?? ''),
+        }),
       setFormatStatus: (formatStatus) =>
-        set({ formatStatus, isFormatListConfirmed: formatStatus === 'FORMAT_CONFIRMED' }),
+        set({
+          formatStatus,
+          isFormatListConfirmed: UNLOCKED_FORMAT_STATUSES.includes(formatStatus ?? ''),
+          isMaterialConfirmed: formatStatus === 'MATERIAL_CONFIRMED',
+        }),
+      setMaterialStatus: (materialStatus) =>
+        set({
+          materialStatus,
+          isMaterialConfirmed: materialStatus === 'MATERIAL_CONFIRMED',
+        }),
       // 切换企业时清空当前项目并重置解析确认（项目隔离边界 + 门禁安全）
       setCurrentEnterprise: (currentEnterprise) =>
         set({
@@ -71,6 +110,8 @@ export const useAppStore = create<AppState>()(
           parseStatus: undefined,
           isFormatListConfirmed: false,
           formatStatus: undefined,
+          materialStatus: undefined,
+          isMaterialConfirmed: false,
         }),
       // 切换项目时重置解析确认（不同项目的解析状态独立）
       setCurrentProject: (currentProject) =>
@@ -80,6 +121,8 @@ export const useAppStore = create<AppState>()(
           parseStatus: undefined,
           isFormatListConfirmed: false,
           formatStatus: undefined,
+          materialStatus: undefined,
+          isMaterialConfirmed: false,
         }),
     }),
     {

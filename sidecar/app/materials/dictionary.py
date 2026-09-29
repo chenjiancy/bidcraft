@@ -40,7 +40,7 @@ class KeywordsDict:
     @classmethod
     def from_json(cls, data: str) -> KeywordsDict:
         obj = json.loads(data)
-        known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+        known = {f.name for f in cls.__dataclass_fields__.values()}
         cleaned = {k: v for k, v in obj.items() if k in known}
         return cls(**cleaned)
 

@@ -5,6 +5,7 @@ from app.models.config_kv import ConfigKV
 from app.models.enterprise import Enterprise
 from app.models.llm_call_log import LLMCallLog
 from app.models.material import Material
+from app.models.material_extract import MaterialExtractItem
 from app.models.parse_config import ParseProjectConfig
 from app.models.project import Project
 from app.models.recycle_bin import RecycleBin
@@ -15,6 +16,7 @@ __all__ = [
     "Enterprise",
     "LLMCallLog",
     "Material",
+    "MaterialExtractItem",
     "ParseProjectConfig",
     "Project",
     "RecycleBin",
