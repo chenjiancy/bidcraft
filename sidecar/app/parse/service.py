@@ -239,7 +239,23 @@ def register_sources(
     with factory() as session:
         project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
         current = project.parse_status
-        if current in (state.INIT, state.PARSED, state.UPLOADED):
+        # 若当前状态高于 UPLOADED（PARSED/SCORE_PARSED/PARSE_REVIEW/PARSE_CONFIRMED 等），
+        # 重新登记文件意味着解析输入已变，必须回退状态并删除产物（已在上面的清理中完成）
+        if current not in (state.INIT, state.UPLOADED):
+            target = state.UPLOADED
+            state.ensure_transition(current, target)
+            project.parse_status = target
+            AppEventRepository(session, Scope(enterprise_id=enterprise_id)).record(
+                "parse_state_change",
+                project_id,
+                {
+                    "from": current,
+                    "to": target,
+                    "reason": "source_registered_reset",
+                    "files": [f["stored_name"] for f in registered],
+                },
+            )
+        elif current == state.INIT:
             target = state.UPLOADED
             project.parse_status = target
             AppEventRepository(session, Scope(enterprise_id=enterprise_id)).record(
