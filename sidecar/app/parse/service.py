@@ -1055,15 +1055,11 @@ async def _run_score_extract(enterprise_id: str, project_id: str) -> dict[str, A
         scoring_extract.extract_score_table, score_matches, generated_at=_now()
     )
 
-    # TR-11.6：Schema 硬校验门禁（通过写标志位，失败标红进修复循环）
+    # TR-11.6：Schema 硬校验门禁（失败抛异常阻止状态机升到 SCORE_PARSED）
     ok, errors = await asyncio.to_thread(scoring_schema.validate_score_table, payload)
     if not ok:
-        payload.setdefault("red_flags", []).append(
-            {
-                "type": "schema_invalid",
-                "detail": "score_table.json 未通过 Schema 硬校验，需人工修正",
-                "errors": errors[:20],
-            }
+        raise ParseError(
+            f"score_table.json 未通过 Schema 硬校验（{len(errors)} 条错误），需修正后重试"
         )
     _write_json(paths.score_table_path(enterprise_id, project_id), payload)
 
