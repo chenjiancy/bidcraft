@@ -506,12 +506,14 @@ def soft_delete_template(
     template_id: str,
 ) -> None:
     repo = TemplateRepository(session, Scope(enterprise_id=enterprise_id))
+    tpl = repo.get(template_id)
     repo.soft_delete(template_id)
-    RecycleBinRepository(session).add(
+    rb = RecycleBinRepository(session).add(
         item_type="template",
         ref_id=template_id,
         enterprise_id=enterprise_id,
     )
+    rb.name = tpl.name
     session.commit()
 
 

@@ -98,12 +98,19 @@ def delete_enterprise(enterprise_id: str, session: SessionDep) -> None:
         repo.get(enterprise_id)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="企业不存在") from None
+    # Task 21：企业下存在项目时禁止删除
+    proj_repo = ProjectRepository(session, Scope(enterprise_id=enterprise_id))
+    active_projects = proj_repo.list(include_deleted=False)
+    if active_projects:
+        raise HTTPException(status_code=400, detail="该企业下还有项目进行中，无法删除") from None
     repo.soft_delete(enterprise_id)
-    RecycleBinRepository(session).add(
+    rb = RecycleBinRepository(session).add(
         item_type="enterprise",
         ref_id=enterprise_id,
         enterprise_id=None,
     )
+    # 保存企业名称
+    rb.name = enterprise_id
     session.commit()
 
 
@@ -191,13 +198,14 @@ def delete_project(enterprise_id: str, project_id: str, session: SessionDep) -> 
         raise HTTPException(status_code=404, detail="企业不存在") from None
     repo = ProjectRepository(session, Scope(enterprise_id=enterprise_id))
     try:
-        repo.get(project_id)
+        project = repo.get(project_id)
     except NotFoundError:
         raise HTTPException(status_code=404, detail="项目不存在") from None
     repo.soft_delete(project_id)
-    RecycleBinRepository(session).add(
+    rb = RecycleBinRepository(session).add(
         item_type="project",
         ref_id=project_id,
         enterprise_id=enterprise_id,
     )
+    rb.name = project.name
     session.commit()

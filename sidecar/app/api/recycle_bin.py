@@ -1,19 +1,21 @@
-"""回收站 API（architecture.md 2.2）。
+"""回收站 API（architecture.md 2.2 + Task 21 完整功能）。
 
-恢复：清除软删除标记 + 删除回收站记录。
-物理清除：仅删除回收站记录（原数据已软删，不做额外清理）。
+支持两类回收站：
+1. 系统回收站（/api/v1/recycle-bin/system）：被删除的企业列表，跨企业可见
+2. 企业内回收站（/api/v1/recycle-bin?enterprise_id=xxx）：项目/素材/模板
+
+操作：
+- 恢复（POST /recycle-bin/{id}/restore）
+- 彻底删除（DELETE /recycle-bin/{id}）：物理删除文件 + 记录
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.security import require_sidecar_token
 from app.db.deps import get_session
-from app.repositories.base import NotFoundError, Scope
-from app.repositories.enterprise import EnterpriseRepository
-from app.repositories.project import ProjectRepository
 from app.repositories.recycle_bin import RecycleBinRepository
 from app.schemas.enterprise import RecycleBinItemOut
 
@@ -24,47 +26,40 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @router.get("/recycle-bin", response_model=list[RecycleBinItemOut])
 def list_recycle_bin(
-    session: SessionDep,
-    enterprise_id: str | None = None,
+    enterprise_id: str | None = Query(None, description="企业 ID；不传则返回系统回收站"),
+    item_type: str | None = Query(
+        None, description="按类型筛选：enterprise/project/material/template"
+    ),
+    session: SessionDep = None,  # type: ignore[assignment]
 ) -> list:
-    return RecycleBinRepository(session).list(enterprise_id=enterprise_id)
+    """列出回收站条目。
+
+    - 不传 enterprise_id：系统回收站（被删除的企业）
+    - 传 enterprise_id：该企业的项目/素材/模板回收项，可按 item_type 筛选
+    """
+    return RecycleBinRepository(session).list(
+        enterprise_id=enterprise_id,
+        item_type=item_type,
+    )
+
+
+@router.get("/recycle-bin/system", response_model=list[RecycleBinItemOut])
+def list_system_recycle_bin(session: SessionDep) -> list:
+    """系统回收站：被删除的企业列表（跨企业可见）。"""
+    return RecycleBinRepository(session).list()
 
 
 @router.post("/recycle-bin/{item_id}/restore")
-def restore_item(item_id: str, session: SessionDep) -> dict[str, str]:
+def restore_item(item_id: str, session: SessionDep) -> dict[str, object]:
     bin_repo = RecycleBinRepository(session)
     try:
-        item = bin_repo.get(item_id)
+        bin_repo.get(item_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="回收站项不存在") from None
 
-    if item.item_type == "enterprise":
-        ent_repo = EnterpriseRepository(session)
-        try:
-            ent = ent_repo.get(item.ref_id, include_deleted=True)
-        except NotFoundError:
-            raise HTTPException(status_code=404, detail="原企业已不存在") from None
-        ent.deleted_at = None
-    elif item.item_type == "project":
-        if not item.enterprise_id:
-            raise HTTPException(status_code=400, detail="回收站项缺少企业归属") from None
-        ent_repo = EnterpriseRepository(session)
-        try:
-            ent_repo.get(item.enterprise_id)
-        except NotFoundError:
-            raise HTTPException(status_code=400, detail="原企业已不存在") from None
-        repo = ProjectRepository(session, Scope(enterprise_id=item.enterprise_id))
-        try:
-            project = repo.get(item.ref_id, include_deleted=True)
-        except NotFoundError:
-            raise HTTPException(status_code=404, detail="原项目已不存在") from None
-        project.deleted_at = None
-    else:
-        raise HTTPException(status_code=400, detail=f"未知类型: {item.item_type}") from None
-
-    result = {"restored": "true", "item_type": item.item_type, "ref_id": item.ref_id}
-    bin_repo.remove(item_id)
-    session.commit()
+    _, result = bin_repo.restore(item_id)
+    if not result.get("restored"):
+        raise HTTPException(status_code=400, detail=result.get("error", "恢复失败")) from None
     return result
 
 
@@ -75,5 +70,7 @@ def purge_item(item_id: str, session: SessionDep) -> None:
         bin_repo.get(item_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="回收站项不存在") from None
-    bin_repo.remove(item_id)
-    session.commit()
+
+    result = bin_repo.purge(item_id)
+    if not result.get("purged"):
+        raise HTTPException(status_code=500, detail=result.get("error", "清理失败")) from None

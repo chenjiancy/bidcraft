@@ -116,21 +116,28 @@ def archive_material(
 
     # Step 4: 写入磁盘（原子写入）
     written_paths: list[str] = []
+    # 无项目时素材存于企业共享目录，用企业根目录作路径校验基准；有项目时用项目目录
+    _path_base = (
+        path_utils.project_dir(enterprise_id, project_id)
+        if project_id
+        else path_utils.materials_dir(enterprise_id)
+    )
     for page_idx, img_bytes in enumerate(image_bytes_list):
         stem = filename if page_idx == 0 else f"{filename}_P{page_idx}"
         safe_stem = path_utils.safe_filename(stem)
         dest_path = path_utils.unique_path(dest_dir / f"{safe_stem}.png")
-        dest_path = path_utils.ensure_within_project(
-            path_utils.project_dir(enterprise_id, project_id or ""),
-            dest_path,
-        )
+        dest_path = path_utils.ensure_within_project(_path_base, dest_path)
         tmp = dest_path.with_suffix(dest_path.suffix + ".tmp")
         tmp.write_bytes(img_bytes)
         tmp.replace(dest_path)
-        rel_base = path_utils.project_dir(enterprise_id, project_id or "")
-        written_paths.append(str(dest_path.relative_to(rel_base)))
+        written_paths.append(str(dest_path.relative_to(_path_base)))
 
     final_path = written_paths[0]  # 第一页作为主文件路径
+    # 企业共享素材：file_path 为绝对路径（purge 时直接 unlink）；项目素材：相对路径
+    if project_id:
+        file_path_val = str(dest_dir / final_path)
+    else:
+        file_path_val = str(path_utils.materials_dir(enterprise_id) / final_path)
     # Step 5: 入库（事务内）
     material = repo.create(
         enterprise_id=enterprise_id,
@@ -138,7 +145,7 @@ def archive_material(
         category=category,
         name=custom_name or original_path.stem,
         filename=filename,
-        file_path=str(dest_dir / final_path),
+        file_path=file_path_val,
         ocr_text=ocr_text,
         valid_until=valid_until,
     )

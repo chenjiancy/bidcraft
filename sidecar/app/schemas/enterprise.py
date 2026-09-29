@@ -80,6 +80,15 @@ class RecycleBinItemOut(BaseModel):
     item_type: str
     enterprise_id: str | None
     ref_id: str
+    name: str | None = None
+    status: str
+    file_path: str | None = None
     deleted_at: datetime
     purge_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class SystemRecycleBinItemOut(RecycleBinItemOut):
+    """系统回收站条目（被删除的企业，跨企业可见）。"""
+
+    pass
