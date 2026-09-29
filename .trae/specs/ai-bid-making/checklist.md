@@ -58,9 +58,13 @@
   - 披露：PR #42 因 base 分支删除被 GitHub 自动关闭，重新 rebase 后以 PR #43 合并；ruff/mypy 31+18 处门禁修复（未用导入/变量、sessionmaker 未实例化、para.style.name 可能为 None 等）；TemplatesPage 遗留 agency 变量未声明编译错误修复；未做真实样本窗口验证
 - [x] Task 19：docxtpl 逐章渲染（TR-19.1～19.10 全部满足，PR #44；render/placeholder.py 三类占位解析；render/service.py 渲染计划/A类/B类/图片闭环/docxtpl逐章/警告清单/跨页检测/一致性审计；api/render.py 9 个端点；前端 RenderPage.tsx + api/render.ts；generated_doc 模型+迁移+Repository；pytest + vitest 全绿；mypy + ruff + tsc + eslint 全绿）
   - 披露：PR #42 因 base 删除被 close 后以 #43/#44 重新合并；CI 首次 Lint & Type Check 失败（ts 类型转换、Alert status processing 无效），二次 push 后全绿；未做真实样本窗口验证
+- [x] Task 20：转 PDF 与 PDF 合并（TR-20.1～20.10 全部满足，PR #45；_libreoffice_to_pdf 逐章转换 + _merge_pdfs PyMuPDF 合并 + 书签 + EXTERNAL 排除 + EXPORTED 状态转换；api/render.py 导出端点；前端 RenderPage 导出按钮；pytest 280 passed + vitest 40 passed）
+  - 披露：CI 首次 Integration Tests 失败（PyMuPDF 未在 pyproject.toml 声明，导致 CI runner 缺依赖），修复后全绿；_merge_pdfs 异常信息暴露不足（except 吞异常只 return False），已修复为 emit 真实异常
+- [x] Task 21：两级回收站（TR-21.1～21.12 全部满足，PR #46；RecycleBin 模型扩展 name/status/file_path/original_name；迁移 a1b2c3d4e5f6；RecycleBinRepository save_name/restore/purge；api/recycle_bin.py list/restore/purge + 系统回收站端点；删除企业拦截（有项目时拒绝）；定时清理任务（每小时扫描 purge_at <= now）；保留时长可配（config_kv 默认30天）；恢复冲突改名；schemas RecycleBinItemOut + SystemRecycleBinItemOut；12 个集成测试）
+  - 披露：CI 首次 Lint & Type Check 失败（mypy rowcount 类型错误 + ruff import 问题），修复后全绿
 - 纪律复核：
-  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14、17、18、19 已遵守）
-  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13、14、17、18、19 已遵守）
+  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8~21 已遵守）
+  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8~21 已遵守）
 
 ## 验收阶段检查
 - [x] 阶段 1.0 验收标准（AC）已定义并全部满足（Task 1-7 全部 done，PR #13/#15/#17/#19/#22/#24/#26）

@@ -610,7 +610,7 @@
   - 样本已就绪（RENDERED 状态、含逐章 Word 的项目）。
 
 ## Task 21: 回收站完整功能（两级回收站、恢复、自动清理）
-- **Status**: pending
+- **Status**: done（2026-09-29 合并，PR #46，TR-21.1～21.12 全部满足）
 - **Priority**: high
 - **Depends On**: Task 20
 - **Description**:
