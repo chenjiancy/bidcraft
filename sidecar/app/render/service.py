@@ -37,6 +37,7 @@ from app.models.material import Material
 from app.models.project import Project
 from app.parse import paths as p
 from app.parse.state import (
+    EXPORTED,
     READY_TO_RENDER,
     RENDERED,
     RENDERING,
@@ -1095,3 +1096,268 @@ def run_consistency_audit(
     _atomic_write_json(p.audit_result_path(enterprise_id, project_id), result)
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# 9. PDF 导出（Task 20）
+# ---------------------------------------------------------------------------
+
+
+def _read_format_list(
+    enterprise_id: str,
+    project_id: str,
+) -> list[dict[str, Any]]:
+    """读取 format_checklist.json，过滤 EXTERNAL 条目，返回有效条目列表。"""
+    data = _read_json(p.format_list_path(enterprise_id, project_id))
+    if not data or not isinstance(data, list):
+        return []
+    return [item for item in data if item.get("status") != "external"]
+
+
+def _emit_progress(
+    emit: Any,
+    stage: str,
+    chapter: str | None = None,
+    progress_pct: int | None = None,
+    **extra: Any,
+) -> None:
+    """发送 SSE 进度事件。"""
+    event: dict[str, Any] = {"type": "progress", "stage": stage}
+    if chapter is not None:
+        event["chapter"] = chapter
+    if progress_pct is not None:
+        event["progress"] = progress_pct
+    event.update(extra)
+    try:
+        emit(event)
+    except Exception:
+        pass
+
+
+def _convert_chapters_to_pdf(
+    enterprise_id: str,
+    project_id: str,
+    chapters: list[dict[str, Any]],
+    pdf_dir: Path,
+    cancel_event: threading.Event | None,
+    emit: Any,
+) -> list[Path]:
+    """逐章将 output/ docx 转 PDF，按章节顺序返回 PDF 路径列表。"""
+    out_dir = p.output_dir(enterprise_id, project_id)
+    total = len(chapters)
+    pdf_paths: list[Path] = []
+
+    for idx, ch in enumerate(chapters):
+        if cancel_event is not None and cancel_event.is_set():
+            return pdf_paths
+
+        chapter_name = ch.get("chapter") or ch.get("name", "")
+        seq = ch.get("seq", idx)
+        seq_str = f"{seq:02d}"
+
+        # 在 output/ 中找匹配的 docx（序号_章节名.docx 或 章节名.docx）
+        candidates = list(out_dir.glob(f"{seq_str}_*.docx")) + list(
+            out_dir.glob(f"{chapter_name}.docx")
+        )
+        docx_path: Path | None = None
+        for c in candidates:
+            if c.exists():
+                docx_path = c
+                break
+
+        if docx_path is None:
+            _emit_progress(
+                emit, "error", chapter=chapter_name, message=f"未找到渲染产物: {docx_path}"
+            )
+            continue
+
+        _emit_progress(
+            emit, "converting", chapter=chapter_name, progress_pct=int((idx / total) * 50)
+        )
+
+        pdf_path = _libreoffice_to_pdf(docx_path, pdf_dir)
+        if pdf_path is None:
+            _emit_progress(
+                emit, "error", chapter=chapter_name, message=f"PDF 转换失败: {chapter_name}"
+            )
+            continue
+
+        pdf_paths.append(pdf_path)
+
+    return pdf_paths
+
+
+def _merge_pdfs(
+    pdf_paths: list[Path],
+    output_path: Path,
+    emit: Any,
+    chapters: list[dict[str, Any]] | None = None,
+) -> bool:
+    """使用 PyMuPDF 合并 PDF，生成书签。
+
+    Returns:
+        True 表示成功。
+    """
+    try:
+        import fitz  # PyMuPDF  # noqa: PLC0415
+    except ImportError:
+        _emit_progress(emit, "error", message="PyMuPDF 未安装，无法合并 PDF")
+        return False
+
+    try:
+        merged = fitz.open()
+        for pdf_path in pdf_paths:
+            try:
+                chapter_doc = fitz.open(str(pdf_path))
+                merged.insert_pdf(chapter_doc)
+                chapter_doc.close()
+            except Exception:
+                continue
+
+        # 生成书签（按章节名）
+        outline: list[list[Any]] = []
+        page_num = 1
+        chapter_iter = iter(chapters) if chapters else iter([{} for _ in pdf_paths])
+        for pdf_path in pdf_paths:
+            try:
+                chapter_doc = fitz.open(str(pdf_path))
+                n_pages = len(chapter_doc)
+                try:
+                    ch = next(chapter_iter)
+                    chapter_name = ch.get("chapter") or ch.get("name", "")
+                except StopIteration:
+                    chapter_name = pdf_path.stem.replace(".pdf", "")
+                outline.append([1, chapter_name, page_num])
+                page_num += n_pages
+                chapter_doc.close()
+            except Exception:
+                continue
+
+        if outline:
+            merged.set_toc(outline)
+
+        # 原子写入：tobytes() + 手动写入临时文件，避免 PyMuPDF save 在 Windows 下内部 rename 报错
+        fd, tmp = tempfile.mkstemp(suffix=".pdf", dir=str(output_path.parent), prefix="merged_")
+        try:
+            pdf_bytes = merged.tobytes()
+            merged.close()
+            with os.fdopen(fd, "wb") as f:
+                f.write(pdf_bytes)
+            os.replace(tmp, str(output_path))
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+        return True
+    except Exception as exc:
+        _emit_progress(emit, "error", message=f"PDF 合并异常: {type(exc).__name__}: {exc}")
+        try:
+            merged.close()
+        except Exception:
+            pass
+        return False
+
+
+def export_pdf(
+    enterprise_id: str,
+    project_id: str,
+    *,
+    cancel_event: threading.Event | None = None,
+    emit: Any | None = None,
+) -> dict[str, Any]:
+    """转 PDF + 合并为完整标书 PDF。
+
+    流程：
+      1. 读取格式清单，过滤 EXTERNAL 条目
+      2. 逐章 docx → PDF（复用 LibreOffice 转换服务）
+      3. PyMuPDF 按顺序合并 + 书签
+      4. 状态机 RENDERED → EXPORTED
+
+    Returns:
+        {"merged_path": str, "total_chapters": int, "success": bool}
+    """
+    # 1. 读取格式清单
+    chapters = _read_format_list(enterprise_id, project_id)
+    if not chapters:
+        return {"merged_path": "", "total_chapters": 0, "success": False, "error": "无格式清单"}
+
+    pdf_dir = p.pdf_dir(enterprise_id, project_id)
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    merged_path = pdf_dir / "标书.pdf"
+
+    # 2. 逐章转 PDF
+    pdf_paths = _convert_chapters_to_pdf(
+        enterprise_id, project_id, chapters, pdf_dir, cancel_event, emit
+    )
+
+    if not pdf_paths:
+        return {
+            "merged_path": "",
+            "total_chapters": 0,
+            "success": False,
+            "error": "无可转换章节（LibreOffice 转换全部失败，可能未安装 soffice 或不在 PATH）",
+        }
+
+    # 3. 合并
+    merge_errors: list[str] = []
+
+    def capture_emit(stage: str, **kwargs: Any) -> None:
+        if stage == "error":
+            msg = kwargs.get("message", "")
+            if msg:
+                merge_errors.append(str(msg))
+        _emit_progress(emit, stage, **kwargs)
+
+    success = _merge_pdfs(pdf_paths, merged_path, capture_emit, chapters=chapters)
+    if not success:
+        detail = "; ".join(merge_errors) if merge_errors else "未知原因"
+        return {
+            "merged_path": "",
+            "total_chapters": len(chapters),
+            "success": False,
+            "error": f"PDF 合并失败: {detail}",
+        }
+
+    # 4. 状态转换 RENDERED → EXPORTED
+    from sqlalchemy import select  # noqa: PLC0415
+
+    from app.db.deps import get_engine  # noqa: PLC0415
+    from app.db.session import session_factory  # noqa: PLC0415
+    from app.models.project import Project  # noqa: PLC0415
+    from app.repositories.app_event import AppEventRepository  # noqa: PLC0415
+    from app.repositories.base import Scope  # noqa: PLC0415
+
+    engine = get_engine()
+    sess = session_factory(engine)()
+    try:
+        project = sess.execute(
+            select(Project).where(
+                Project.id == project_id,
+                Project.enterprise_id == enterprise_id,
+            )
+        ).scalar_one_or_none()
+        if project is not None:
+            ensure_transition(project.parse_status, EXPORTED)  # type: ignore[arg-type]
+            project.parse_status = EXPORTED
+            sess.commit()
+            scope = Scope(enterprise_id=enterprise_id, project_id=project_id)
+            event_repo = AppEventRepository(sess, scope)
+            event_repo.record(
+                "export_state_change",
+                project_id=project_id,
+                payload={"from": "RENDERED", "to": "EXPORTED"},
+            )
+            sess.commit()
+    except Exception as exc:
+        sess.rollback()
+        _emit_progress(emit, "error", message=f"状态更新失败: {exc}")
+    finally:
+        sess.close()
+
+    return {
+        "merged_path": str(merged_path),
+        "total_chapters": len(pdf_paths),
+        "success": True,
+    }

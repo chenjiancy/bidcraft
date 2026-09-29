@@ -36,7 +36,11 @@ import {
   startRender,
   cancelRender,
   downloadChapter,
+  exportPdf,
+  cancelExport,
+  getExportStatus,
   type AuditResult,
+  type ExportStatus,
   type RenderPlan,
   type RenderPlanItem,
   type RenderProgressEvent,
@@ -74,6 +78,9 @@ export default function RenderPage() {
   const [rendering, setRendering] = useState(false)
   const [renderProgress, setRenderProgress] = useState<number>(0)
   const [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState<number>(0)
+  const [exportStatus, setExportStatus] = useState<ExportStatus | null>(null)
 
   const eid = currentEnterprise?.id ?? ''
   const pid = currentProject?.id ?? ''
@@ -136,11 +143,22 @@ export default function RenderPage() {
     }
   }, [eid, pid])
 
+  const loadExportStatus = useCallback(async () => {
+    if (!eid || !pid) return
+    try {
+      const data = await getExportStatus(eid, pid)
+      setExportStatus(data)
+    } catch {
+      /* ignore */
+    }
+  }, [eid, pid])
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadPlan()
     void loadStatus()
-  }, [loadPlan, loadStatus])
+    void loadExportStatus()
+  }, [loadPlan, loadStatus, loadExportStatus])
 
   // 渲染完成后自动加载警告和审计
   useEffect(() => {
@@ -213,6 +231,51 @@ export default function RenderPage() {
   const handleDownload = (chapter: string) => {
     const url = downloadChapter(eid, pid, chapter)
     window.open(url, '_blank')
+  }
+
+  const handleExportPdf = async () => {
+    setExporting(true)
+    setExportProgress(0)
+    try {
+      const onProgress = (event: RenderProgressEvent) => {
+        if (event.type === 'progress') {
+          if (event.stage === 'started') {
+            setExportProgress(5)
+          }
+          if (event.progress !== undefined) {
+            setExportProgress((prev) => Math.max(prev, Number(event.progress)))
+          }
+          if (event.stage === 'completed') {
+            setExportProgress(100)
+            setExporting(false)
+            void loadStatus()
+            void loadExportStatus()
+          }
+          if (event.stage === 'cancelled') {
+            setExporting(false)
+            setExportStatus((prev) => (prev ? { ...prev, export_status: 'cancelled' } : prev))
+          }
+        }
+        if (event.type === 'error') {
+          message.error(event.message ?? '导出失败')
+          setExporting(false)
+        }
+      }
+      await exportPdf(eid, pid, onProgress)
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : String(err))
+      setExporting(false)
+    }
+  }
+
+  const handleCancelExport = async () => {
+    try {
+      await cancelExport(eid, pid)
+      setExporting(false)
+      message.info('已取消导出')
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : String(err))
+    }
   }
 
   const bColumns: ColumnsType<BAdjustRow> = [
@@ -503,7 +566,41 @@ export default function RenderPage() {
               showIcon
               message="渲染完成（RENDERED）"
               description="各章节 Word 文件已生成，可在警告清单和审计结果 Tab 中查看质量问题。"
-              action={<Button onClick={() => navigate('/template-match')}>返回模板匹配</Button>}
+              action={
+                <Space>
+                  {!exporting && (
+                    <Button
+                      type="primary"
+                      onClick={() => void handleExportPdf()}
+                      disabled={parseStatus !== 'RENDERED'}
+                    >
+                      导出 PDF
+                    </Button>
+                  )}
+                  {exporting && (
+                    <>
+                      <Button danger onClick={() => void handleCancelExport()}>
+                        取消导出
+                      </Button>
+                      <Progress percent={exportProgress} size="small" style={{ width: 120 }} />
+                    </>
+                  )}
+                  {exportStatus?.export_status === 'completed' && exportStatus?.merged_path && (
+                    <Button
+                      type="default"
+                      onClick={() => {
+                        window.open(
+                          `/api/v1/enterprises/${eid}/projects/${pid}/render/export/pdf`,
+                          '_blank',
+                        )
+                      }}
+                    >
+                      下载合并 PDF
+                    </Button>
+                  )}
+                  <Button onClick={() => navigate('/template-match')}>返回模板匹配</Button>
+                </Space>
+              }
             />
           )}
         </Card>

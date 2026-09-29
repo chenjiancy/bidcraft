@@ -49,6 +49,8 @@ export interface RenderProgressEvent {
   event?: string
   message?: string
   paths?: string[]
+  stage?: string
+  progress?: number
 }
 
 export interface WarningItem {
@@ -93,6 +95,14 @@ export interface RenderStatus {
   current_chapter: string | null
   completed_chapters: string[]
   total_chapters: number
+  error_msg: string | null
+}
+
+export interface ExportStatus {
+  export_status: 'idle' | 'exporting' | 'completed' | 'cancelled' | 'error'
+  merged_path: string | null
+  total_chapters: number
+  current_chapter: string | null
   error_msg: string | null
 }
 
@@ -167,4 +177,31 @@ export function getAuditResult(enterpriseId: string, projectId: string): Promise
 export function downloadChapter(enterpriseId: string, projectId: string, chapter: string): string {
   // 直接返回浏览器可访问的下载 URL（sidecar 支持文件流）
   return route(enterpriseId, projectId, `download/${encodeURIComponent(chapter)}`)
+}
+
+// ---------- PDF 导出（Task 20） ----------
+
+export function exportPdf(
+  enterpriseId: string,
+  projectId: string,
+  onProgress: (event: RenderProgressEvent) => void,
+): Promise<RenderProgressEvent> {
+  return window.bid.sidecar.stream(route(enterpriseId, projectId, 'export'), {}, (event) => {
+    onProgress(event as unknown as RenderProgressEvent)
+  }) as unknown as Promise<RenderProgressEvent>
+}
+
+export function cancelExport(
+  enterpriseId: string,
+  projectId: string,
+): Promise<{ cancelled: boolean }> {
+  return window.bid.sidecar.call(route(enterpriseId, projectId, 'export/cancel'), {}) as Promise<{
+    cancelled: boolean
+  }>
+}
+
+export function getExportStatus(enterpriseId: string, projectId: string): Promise<ExportStatus> {
+  return window.bid.sidecar.call(
+    route(enterpriseId, projectId, 'export/status'),
+  ) as Promise<ExportStatus>
 }

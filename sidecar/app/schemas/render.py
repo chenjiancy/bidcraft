@@ -131,3 +131,16 @@ class RenderStatusOut(BaseModel):
     completed_chapters: list[str] = Field(default_factory=list)
     total_chapters: int = 0
     error_msg: str | None = None
+
+
+# ---------- PDF 导出（Task 20） ----------
+
+
+class ExportStatusOut(BaseModel):
+    """GET /render/export/status 响应。"""
+
+    export_status: str  # "idle" | "exporting" | "completed" | "cancelled" | "error"
+    merged_path: str | None = None
+    total_chapters: int = 0
+    current_chapter: str | None = None
+    error_msg: str | None = None
