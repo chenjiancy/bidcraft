@@ -54,6 +54,8 @@
   - 披露：修复 Task 14 遗留门禁派生缺陷（setParseStatus 改状态集合判定，避免状态推进后业务模块被重新锁定）；/bid 路由放宽为仅需 PARSE_CONFIRMED（格式清单复核在页内完成）；B 类（确实没有）走收件箱上传后重查，未做真实样本窗口验证（StubOcr + 单测覆盖）
 - [x] Task 17：模板库管理（TR-17.1～17.14 全部满足，PR #41；Template 模型 + 迁移 e8d2f4a1b7c3；template_version_dir 目录骨架；service 合规检查/Jinja2 占位语法校验/词典覆盖率/template.json 生成；版本管理 new_version/overwrite_latest；软删除进回收站；外部写入检测；/templates API；前端 TemplatesPage + /templates 路由；pytest 235 passed）
   - 披露：修复 session.flush() 未 commit 导致数据未持久化（改为 session.commit()）；Windows rename 不覆盖已有文件（先 unlink 再 rename）；mark_all_as_deprecated 误排除当前版本（移除 version != 条件）
+- [x] Task 18：模板匹配与语义比对（TR-18.1～18.15 全部满足，PR #43；TemplateCompare 模型 + 迁移 f9e3d5a7b2c1；template_match.py 自动匹配/文件关联/语义比对/差异确认门禁；状态机 TEMPLATE_MATCHED→TEMPLATE_REVIEW→READY_TO_RENDER；/template-match API 9 端点；前端 TemplateMatchPage + /template-match 路由；pytest 257 passed + vitest 40 passed）
+  - 披露：PR #42 因 base 分支删除被 GitHub 自动关闭，重新 rebase 后以 PR #43 合并；ruff/mypy 31+18 处门禁修复（未用导入/变量、sessionmaker 未实例化、para.style.name 可能为 None 等）；TemplatesPage 遗留 agency 变量未声明编译错误修复；未做真实样本窗口验证
 - 纪律复核：
   - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14 已遵守）
   - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13、14 已遵守）
