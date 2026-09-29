@@ -7,6 +7,7 @@ import WorkspacePage from './pages/workspace/WorkspacePage'
 import ParsePage from './pages/parse/ParsePage'
 import BidPage from './pages/bid/BidPage'
 import CheckPage from './pages/check/CheckPage'
+import MaterialsPage from './pages/materials/MaterialsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import { useAppStore } from './stores/useAppStore'
 
@@ -24,6 +25,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/workspace" replace />} />
           <Route path="/workspace" element={<WorkspacePage />} />
+          <Route path="/materials" element={<MaterialsPage />} />
           <Route path="/parse" element={<ParsePage />} />
           <Route element={<RequireUnlock />}>
             <Route path="/bid" element={<BidPage />} />

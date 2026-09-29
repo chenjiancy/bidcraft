@@ -11,6 +11,18 @@
 
 所有写入路径都经 ``ensure_within_project`` 校验，禁止逃逸项目根
 （architecture.md 八：文件操作经路径校验）。
+
+素材库布局（Task 15）::
+
+    <data_root>/enterprises/<enterprise_id>/
+    ├── materials/
+    │   ├── qualification/   # 资质证书
+    │   ├── personnel/       # 人员证书
+    │   ├── performance/     # 业绩合同
+    │   ├── honor/           # 荣誉奖项
+    │   └── finance/         # 财务材料
+    └── projects/<project_id>/
+        └── project-materials/  # 项目独享素材
 """
 
 from __future__ import annotations
@@ -27,6 +39,19 @@ _CHECKPOINTS = "checkpoints"
 _DOCX = "docx"
 _CONFIRMED = "confirmed"
 _LISTS = "lists"
+_MATERIALS = "materials"
+_PROJECT_MATERIALS = "project-materials"
+_INBOX = "inbox"
+_KEYWORDS_DICT = "keywords.dict.json"
+
+# 素材库五大类（目录名）
+MATERIAL_CATEGORIES = (
+    "qualification",
+    "personnel",
+    "performance",
+    "honor",
+    "finance",
+)
 
 
 class PathEscapeError(Exception):
@@ -101,6 +126,78 @@ def format_list_path(enterprise_id: str, project_id: str) -> Path:
 def format_list_checkpoint_path(enterprise_id: str, project_id: str) -> Path:
     """Task 14：格式清单确认 checkpoint JSON 路径。"""
     return checkpoints_dir(enterprise_id, project_id) / "format_list.json"
+
+
+# ---------- Task 15：素材库目录布局 ----------
+
+
+def _enterprise_dir(enterprise_id: str) -> Path:
+    return config.DATA_ROOT / "enterprises" / enterprise_id
+
+
+def materials_dir(enterprise_id: str) -> Path:
+    """企业共享素材库根目录。"""
+    return _enterprise_dir(enterprise_id) / _MATERIALS
+
+
+def materials_category_dir(enterprise_id: str, category: str) -> Path:
+    """企业共享素材库按分类子目录。"""
+    if category not in MATERIAL_CATEGORIES:
+        raise ValueError(f"非法素材分类: {category}")
+    return materials_dir(enterprise_id) / category
+
+
+def project_materials_dir(enterprise_id: str, project_id: str) -> Path:
+    """项目独享素材库根目录。"""
+    return project_dir(enterprise_id, project_id) / _PROJECT_MATERIALS
+
+
+def inbox_dir(enterprise_id: str, project_id: str | None = None) -> Path:
+    """收件箱目录：project_id 为 None 时为企业共享收件箱，否则为项目独享收件箱。"""
+    if project_id is None:
+        base = _enterprise_dir(enterprise_id)
+    else:
+        base = project_dir(enterprise_id, project_id)
+    return base / _INBOX
+
+
+def keywords_dict_path(enterprise_id: str) -> Path:
+    """动态关键字词典文件路径（config/keywords.dict.json）。"""
+    return _enterprise_dir(enterprise_id) / "config" / _KEYWORDS_DICT
+
+
+def fts5_db_path(enterprise_id: str) -> Path:
+    """FTS5 索引数据库路径。"""
+    return _enterprise_dir(enterprise_id) / "fts5.db"
+
+
+def init_materials_dirs(enterprise_id: str) -> list[Path]:
+    """初始化企业素材目录骨架，返回创建/确保存在的目录列表。"""
+    dirs: list[Path] = []
+    cat_base = materials_dir(enterprise_id)
+    cat_base.mkdir(parents=True, exist_ok=True)
+    dirs.append(cat_base)
+    for cat in MATERIAL_CATEGORIES:
+        sub = cat_base / cat
+        sub.mkdir(exist_ok=True)
+        dirs.append(sub)
+    # 收件箱
+    inbox = inbox_dir(enterprise_id)
+    inbox.mkdir(exist_ok=True)
+    dirs.append(inbox)
+    # 词典与 FTS5 目录
+    config_dir = _enterprise_dir(enterprise_id) / "config"
+    config_dir.mkdir(exist_ok=True)
+    return dirs
+
+
+def init_project_materials_dirs(enterprise_id: str, project_id: str) -> list[Path]:
+    """初始化项目独享素材目录骨架。"""
+    pm = project_materials_dir(enterprise_id, project_id)
+    pm.mkdir(parents=True, exist_ok=True)
+    inbox = inbox_dir(enterprise_id, project_id)
+    inbox.mkdir(exist_ok=True)
+    return [pm, inbox]
 
 
 def ensure_within_project(base: Path, target: Path) -> Path:

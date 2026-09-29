@@ -44,6 +44,9 @@ const api = {
     /** 打开本机招标文件选择对话框，返回选中文件（绝对路径，供同机 sidecar 入库） */
     openBidFiles: (): Promise<Array<{ name: string; path: string }>> =>
       ipcRenderer.invoke('dialog:openBidFiles'),
+    /** Task 15：选择素材文件（PDF/Word/图片） */
+    openMaterialFiles: (): Promise<Array<{ name: string; path: string }>> =>
+      ipcRenderer.invoke('dialog:openMaterialFiles'),
   },
   shell: {
     /** Task 13：用系统默认应用打开 docx 文件（路径校验在 Main 侧） */

@@ -58,6 +58,10 @@ def create_enterprise(body: EnterpriseCreate, session: SessionDep) -> Enterprise
     fields = body.model_dump(exclude={"name", "agent"})
     ent = repo.create(name=body.name, agent=body.agent, **fields)
     session.commit()
+    # Task 15：初始化素材目录骨架
+    from app.parse import paths as path_utils
+
+    path_utils.init_materials_dirs(ent.id)
     return ent
 
 
@@ -132,6 +136,10 @@ def create_project(
     fields = body.model_dump(exclude={"name"})
     project = repo.create(name=body.name, **fields)
     session.commit()
+    # Task 15：初始化项目素材目录
+    from app.parse import paths as path_utils
+
+    path_utils.init_project_materials_dirs(enterprise_id, project.id)
     return _project_out(project, ent.agent)
 
 
