@@ -1872,3 +1872,524 @@ def confirm_checklist(
         "total_items": len(all_items),
         "confirmed_items": len(all_items),
     }
+
+
+# ---------- Task 14：商务标格式清单确认 ----------
+
+
+def enter_format_review(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+) -> dict[str, Any]:
+    """POST /parse/format/review：PARSE_CONFIRMED → FORMAT_REVIEW。
+
+    幂等：已是 FORMAT_REVIEW 时直接返回当前状态。
+    注册 format:list_confirm checkpoint 项。
+    """
+    with factory() as session:
+        scope = Scope(enterprise_id=enterprise_id)
+        repo = ProjectRepository(session, scope)
+        try:
+            project = repo.get(project_id)
+        except NotFoundError:
+            raise ParseError("项目不存在") from None
+        current = project.parse_status
+        if current not in (state.PARSE_CONFIRMED, state.FORMAT_REVIEW):
+            raise ParseError(f"当前状态 {current} 不可进入格式清单确认（需先 PARSE_CONFIRMED）")
+        if current == state.PARSE_CONFIRMED:
+            _transition(
+                factory, enterprise_id, project_id, state.FORMAT_REVIEW, "enter_format_review"
+            )
+        # 幂等：已是 FORMAT_REVIEW 直接返回
+        result = {"parse_status": state.FORMAT_REVIEW, "review_started_at": _now()}
+
+        # 动态注册 format:list_confirm checkpoint 项
+        ckpt_path = paths.format_list_checkpoint_path(enterprise_id, project_id)
+        if ckpt_path.is_file():
+            store = CheckpointStore.load_or_create(ckpt_path, "format_list_confirm", {})
+            store._add_new_items({"format:list_confirm": "商务标格式清单确认"})
+        else:
+            store = CheckpointStore.load_or_create(
+                ckpt_path,
+                "format_list_confirm",
+                {"format:list_confirm": "商务标格式清单确认"},
+            )
+
+        return result
+
+
+def get_format_list(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+) -> dict[str, Any]:
+    """GET /parse/format/list：返回商务标格式清单全量数据。
+
+    从 docx manifest 构建基线条目，合并 format_checklist.json 中的用户操作。
+    """
+    docx_data = _read_json(paths.docx_manifest_path(enterprise_id, project_id), None)
+    list_data = _read_json(paths.format_list_path(enterprise_id, project_id), None)
+
+    # 从 manifest 构建基线条目（按 source_stem + seq 排序稳定）
+    baseline_items: dict[str, dict[str, Any]] = {}
+    if docx_data and docx_data.get("sources"):
+        for src in docx_data["sources"]:
+            for sec in src.get("sections") or []:
+                key = sec["checkpoint_key"]
+                baseline_items[key] = {
+                    "key": key,
+                    "seq": sec.get("seq", 0),
+                    "title": sec.get("title", ""),
+                    "file": sec.get("file") or "",
+                    "is_external": sec.get("is_external", False),
+                    "source_stem": src.get("source_stem", ""),
+                    "status": "confirmed",
+                    "missing_reason": None,
+                    "added_file": None,
+                }
+
+    # 合并 list_data 中的用户操作
+    confirmed_at: str | None = None
+    items_map: dict[str, dict[str, Any]] = dict(baseline_items)
+    removed_keys: set[str] = set()
+    if list_data:
+        confirmed_at = list_data.get("confirmed_at")
+        for item in list_data.get("items") or []:
+            key = item.get("key", "")
+            status = item.get("status", "confirmed")
+            if status == "removed":
+                removed_keys.add(key)
+                continue
+            if key in items_map:
+                items_map[key].update(
+                    {
+                        "status": status,
+                        "missing_reason": item.get("missing_reason"),
+                        "added_file": item.get("added_file"),
+                    }
+                )
+                if "title" in item:
+                    items_map[key]["title"] = item["title"]
+                if "file" in item:
+                    items_map[key]["file"] = item["file"]
+            else:
+                # 新增条目（不在 manifest 中）
+                items_map[key] = {
+                    "key": key,
+                    "seq": item.get("seq", 0),
+                    "title": item.get("title", ""),
+                    "file": item.get("file") or "",
+                    "is_external": item.get("is_external", False),
+                    "source_stem": item.get("source_stem", ""),
+                    "status": status,
+                    "missing_reason": item.get("missing_reason"),
+                    "added_file": item.get("added_file"),
+                }
+
+    # 过滤掉 removed 条目
+    active_items = [
+        v
+        for v in items_map.values()
+        if v.get("status") != "removed" and v["key"] not in removed_keys
+    ]
+    # 按 source_stem + seq 排序（封面排在最前）
+    active_items.sort(key=lambda x: (x["source_stem"], x["seq"]))
+
+    total = len(active_items)
+    confirmed_count = sum(1 for v in active_items if v["status"] in ("confirmed", "added"))
+    missing_count = sum(1 for v in active_items if v["status"] == "missing")
+    external_count = sum(1 for v in active_items if v.get("is_external"))
+
+    return {
+        "parse_status": (
+            state.FORMAT_CONFIRMED
+            if confirmed_at and confirmed_count == total and total > 0
+            else state.FORMAT_REVIEW
+        ),
+        "items": active_items,
+        "confirmed_at": confirmed_at,
+        "total": total,
+        "confirmed_count": confirmed_count,
+        "missing_count": missing_count,
+        "external_count": external_count,
+    }
+
+
+def _add_format_item_path(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    file_path: str,
+    title: str | None,
+) -> dict[str, Any]:
+    """POST /parse/format/add_path：用户指定本机文件路径新增清单条目。
+
+    校验源文件可读 → 原子写入项目 parse/docx/ → 命名沿用 序号_章节名.docx 规范。
+    """
+    from pathlib import Path as _Path
+
+    src = _Path(file_path)
+    if not src.is_file():
+        raise ParseError(f"源文件不存在或不可读：{file_path}")
+    if src.suffix.lower() not in (".docx", ".doc", ".pdf"):
+        raise ParseError("仅支持 .docx / .doc / .pdf 格式文件")
+
+    # 目标目录：parse/docx/ 下以唯一子目录存放
+    dest_parent = paths.docx_dir(enterprise_id, project_id)
+    # 命名：沿用 序号_章节名.docx 规范（序号从 0 开始，此处为用户新增，暂定为下一个可用序号）
+    safe_title = paths.safe_filename(title or src.stem)
+    dest_path = paths.unique_path(dest_parent / f"99_{safe_title}{src.suffix}")
+    dest_path = paths.ensure_within_project(paths.project_dir(enterprise_id, project_id), dest_path)
+    # 原子写入：先写临时文件再 replace
+    tmp = dest_path.with_suffix(dest_path.suffix + ".tmp")
+    shutil.copy2(src, tmp)
+    tmp.replace(dest_path)
+
+    list_data = _read_json(paths.format_list_path(enterprise_id, project_id), {})
+    items = list_data.get("items", [])
+    new_key = f"add:{uuid.uuid4().hex[:8]}"
+    items.append(
+        {
+            "key": new_key,
+            "seq": 99,
+            "title": safe_title,
+            "file": str(dest_path.relative_to(paths.docx_dir(enterprise_id, project_id))).replace(
+                "\\", "/"
+            ),
+            "is_external": any(kw in safe_title for kw in docx_build._EXTERNAL_KEYWORDS),
+            "source_stem": paths.safe_filename(src.stem),
+            "status": "added",
+            "missing_reason": None,
+            "added_file": str(dest_path),
+        }
+    )
+    list_data["items"] = items
+    list_data.pop("confirmed_at", None)  # 修改清单后视为未确认
+    _write_json(paths.format_list_path(enterprise_id, project_id), list_data)
+    return {"key": new_key, "file": str(dest_path)}
+
+
+def _add_format_item_name(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    name: str,
+) -> dict[str, Any]:
+    """POST /parse/format/add_name：用户只提供名称，软件在解析产物/原招标文件中查找。
+
+    优先在 parse/docx/ 下查找同名文件；其次在原招标文件（source/）下查找；
+    均找不到时返回 missing 状态条目（标红，不阻断其他条目确认）。
+    """
+    list_data = _read_json(paths.format_list_path(enterprise_id, project_id), {})
+    items = list_data.get("items", [])
+
+    # 已在清单中存在同名条目 → 提示
+    norm_name = paths.safe_filename(name)
+    for it in items:
+        if it.get("title") == norm_name:
+            raise ParseError(f"清单中已存在同名条目：{norm_name}")
+
+    # 在 parse/docx/ 下查找
+    docx_dir = paths.docx_dir(enterprise_id, project_id)
+    candidates: list[Path] = []
+    if docx_dir.exists():
+        for p in docx_dir.rglob(f"*{norm_name}*.docx"):
+            if p.is_file():
+                candidates.append(p)
+    # 在原招标文件 source/ 下查找
+    source_dir = paths.source_dir(enterprise_id, project_id)
+    for p in source_dir.rglob(f"*{norm_name}*"):
+        if p.is_file() and p.suffix.lower() in (".docx", ".doc", ".pdf"):
+            if p not in candidates:
+                candidates.append(p)
+
+    seq = _next_free_seq(list_data, enterprise_id, project_id)
+    if candidates:
+        src_path = candidates[0]
+        safe_title = paths.safe_filename(src_path.stem)
+        dest_path = paths.unique_path(docx_dir / f"{seq:02d}_{safe_title}.docx")
+        dest_path = paths.ensure_within_project(
+            paths.project_dir(enterprise_id, project_id), dest_path
+        )
+        tmp = dest_path.with_suffix(dest_path.suffix + ".tmp")
+        shutil.copy2(src_path, tmp)
+        tmp.replace(dest_path)
+        key = f"add:{uuid.uuid4().hex[:8]}"
+        items.append(
+            {
+                "key": key,
+                "seq": seq,
+                "title": safe_title,
+                "file": str(dest_path.relative_to(docx_dir)).replace("\\", "/"),
+                "is_external": any(kw in safe_title for kw in docx_build._EXTERNAL_KEYWORDS),
+                "source_stem": paths.safe_filename(src_path.stem),
+                "status": "added",
+                "missing_reason": None,
+                "added_file": str(dest_path),
+            }
+        )
+    else:
+        # 找不到：置 missing
+        key = f"add:{uuid.uuid4().hex[:8]}"
+        seq = _next_free_seq(list_data, enterprise_id, project_id)
+        items.append(
+            {
+                "key": key,
+                "seq": seq,
+                "title": norm_name,
+                "file": "",
+                "is_external": False,
+                "source_stem": "",
+                "status": "missing",
+                "missing_reason": "在解析产物及原招标文件中未找到同名文件",
+                "added_file": None,
+            }
+        )
+
+    list_data["items"] = items
+    list_data.pop("confirmed_at", None)
+    _write_json(paths.format_list_path(enterprise_id, project_id), list_data)
+    return {"key": key, "status": items[-1]["status"]}
+
+
+def _next_free_seq(list_data: dict[str, Any], enterprise_id: str, project_id: str) -> int:
+    """计算下一个可用的序号（基于已使用的最大序号 + 1）。"""
+    max_seq = 0
+    docx_data = _read_json(paths.docx_manifest_path(enterprise_id, project_id), {})
+    for src in docx_data.get("sources", []):
+        for sec in src.get("sections") or []:
+            s = sec.get("seq", 0)
+            if isinstance(s, int) and s > max_seq:
+                max_seq = s
+    for item in list_data.get("items") or []:
+        s = item.get("seq", 0)
+        if isinstance(s, int) and s > max_seq:
+            max_seq = s
+    return max_seq + 1
+
+
+def _remove_format_item(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    item_key: str,
+) -> dict[str, Any]:
+    """POST /parse/format/remove：条目仅移出制作范围，parsed/ 文件保留。"""
+    list_data = _read_json(paths.format_list_path(enterprise_id, project_id), {})
+    items = list_data.get("items", [])
+    found = False
+    for it in items:
+        if it.get("key") == item_key:
+            it["status"] = "removed"
+            found = True
+            break
+    if not found:
+        raise ParseError(f"条目不存在：{item_key}")
+    list_data["items"] = items
+    list_data.pop("confirmed_at", None)
+    _write_json(paths.format_list_path(enterprise_id, project_id), list_data)
+    return {"removed": item_key}
+
+
+def _update_format_item(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    item_key: str,
+    title: str | None,
+    file: str | None,
+) -> dict[str, Any]:
+    """POST /parse/format/update：编辑条目名称或更换对应文件。"""
+    list_data = _read_json(paths.format_list_path(enterprise_id, project_id), {})
+    items = list_data.get("items", [])
+    found = False
+    for it in items:
+        if it.get("key") == item_key:
+            if title is not None:
+                it["title"] = paths.safe_filename(title)
+            if file is not None:
+                it["file"] = file
+                if it.get("source_stem") == "":
+                    it["source_stem"] = paths.safe_filename(Path(file).stem)
+            found = True
+            break
+    if not found:
+        raise ParseError(f"条目不存在：{item_key}")
+    list_data["items"] = items
+    list_data.pop("confirmed_at", None)
+    _write_json(paths.format_list_path(enterprise_id, project_id), list_data)
+    return {"updated": item_key}
+
+
+def confirm_format_list(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    items: list[dict[str, Any]],
+    note: str | None = None,
+) -> dict[str, Any]:
+    """POST /parse/format/confirm：逐条确认格式清单 → FORMAT_CONFIRMED。
+
+    硬校验：所有 active 条目（非 removed）必须 confirmed=true 才能保存。
+    missing 状态条目经用户确认后不阻断。
+    """
+    with factory() as session:
+        scope = Scope(enterprise_id=enterprise_id)
+        repo = ProjectRepository(session, scope)
+        try:
+            project = repo.get(project_id)
+        except NotFoundError:
+            raise ParseError("项目不存在") from None
+        current = project.parse_status
+        if current not in (state.FORMAT_REVIEW, state.FORMAT_CONFIRMED):
+            raise ParseError(f"当前状态 {current} 不可确认格式清单（需先进入 FORMAT_REVIEW）")
+        session.close()
+
+    # 读取当前清单
+    list_data = _read_json(paths.format_list_path(enterprise_id, project_id), {"items": []})
+    all_active_items = [it for it in list_data.get("items", []) if it.get("status") != "removed"]
+    if not all_active_items:
+        raise ParseError("格式清单为空，无法确认（请先完成解析）")
+
+    # 构建 confirmed 映射（前端回传的 items 中以 key 为索引）
+    confirmed_map: dict[str, bool] = {}
+    for ci in items:
+        confirmed_map[ci.get("key", "")] = ci.get("confirmed", False)
+
+    # 硬校验：所有 active 条目必须 confirmed
+    unconfirmed: list[str] = []
+    for it in all_active_items:
+        key = it["key"]
+        if not confirmed_map.get(key, False):
+            unconfirmed.append(key)
+
+    if unconfirmed:
+        raise ParseError(f"尚有 {len(unconfirmed)} 条未确认，无法保存：{unconfirmed[:5]}...")
+
+    # 写盘（更新 items 的状态和确认信息）
+    confirmed_at = _now()
+    for it in list_data.get("items", []):
+        key = it.get("key", "")
+        user_item = next((ci for ci in items if ci.get("key") == key), None)
+        if user_item:
+            it["status"] = user_item.get("status", it.get("status", "confirmed"))
+            it["missing_reason"] = user_item.get("missing_reason", it.get("missing_reason"))
+            if "title" in user_item:
+                it["title"] = user_item["title"]
+            if "file" in user_item:
+                it["file"] = user_item["file"]
+            if "added_file" in user_item:
+                it["added_file"] = user_item["added_file"]
+    list_data["confirmed_at"] = confirmed_at
+    list_data["note"] = note
+    _write_json(paths.format_list_path(enterprise_id, project_id), list_data)
+
+    # checkpoint 标记成功
+    ckpt_path = paths.format_list_checkpoint_path(enterprise_id, project_id)
+    store = CheckpointStore.load_or_create(
+        ckpt_path, "format_list_confirm", {"format:list_confirm": "商务标格式清单确认"}
+    )
+    store.mark_success(
+        "format:list_confirm",
+        {
+            "list_path": "lists/format_checklist.json",
+            "items": len(all_active_items),
+            "confirmed_at": confirmed_at,
+        },
+    )
+
+    # 状态转换
+    if current == state.FORMAT_REVIEW:
+        _transition(
+            factory,
+            enterprise_id,
+            project_id,
+            state.FORMAT_CONFIRMED,
+            "format_list_confirmed",
+            total_items=len(all_active_items),
+        )
+
+    return {
+        "parse_status": state.FORMAT_CONFIRMED,
+        "confirmed_at": confirmed_at,
+        "list_path": "lists/format_checklist.json",
+        "total_items": len(all_active_items),
+        "confirmed_items": len(all_active_items),
+    }
+
+
+def reset_format_item(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    item_key: str | None,
+) -> dict[str, Any]:
+    """POST /parse/retry 扩展：重置格式清单单项（或整任务）。
+
+    item_key 为 null 时：清除 format_checklist.json（回退至未确认态，状态退回 FORMAT_REVIEW）。
+    item_key 有值时：删除对应条目（若为 added 条目则同时删除 parse/docx/ 下的文件）。
+    """
+    with factory() as session:
+        scope = Scope(enterprise_id=enterprise_id)
+        repo = ProjectRepository(session, scope)
+        try:
+            project = repo.get(project_id)
+        except NotFoundError:
+            raise ParseError("项目不存在") from None
+        current = project.parse_status
+        if current not in (state.FORMAT_REVIEW, state.FORMAT_CONFIRMED):
+            raise ParseError(
+                f"当前状态 {current} 不支持格式清单重置（需 FORMAT_REVIEW 或 FORMAT_CONFIRMED）"
+            )
+        session.close()
+
+    list_path = paths.format_list_path(enterprise_id, project_id)
+    list_data = _read_json(list_path, {"items": []})
+
+    if item_key is None:
+        # 整任务重置：删除清单文件，状态回退到 FORMAT_REVIEW
+        if list_path.exists():
+            list_path.unlink()
+        ckpt_path = paths.format_list_checkpoint_path(enterprise_id, project_id)
+        if ckpt_path.exists():
+            ckpt_path.unlink()
+        if current == state.FORMAT_CONFIRMED:
+            _safe_transition(
+                factory, enterprise_id, project_id, state.FORMAT_REVIEW, "format_list_reset_all"
+            )
+        return {"reset": "all", "cleared": True}
+
+    # 单项重置：删除条目
+    items = list_data.get("items", [])
+    new_items = []
+    removed_key: str | None = None
+    for it in items:
+        if it.get("key") == item_key:
+            removed_key = item_key
+            # 如果是 added 条目且有 added_file，删除物理文件
+            added_file = it.get("added_file")
+            if added_file:
+                fp = Path(added_file)
+                if fp.is_file():
+                    try:
+                        fp.unlink()
+                    except OSError:
+                        pass
+        else:
+            new_items.append(it)
+    if removed_key is None:
+        raise ParseError(f"条目不存在：{item_key}")
+    list_data["items"] = new_items
+    list_data.pop("confirmed_at", None)
+    _write_json(list_path, list_data)
+
+    # 清除 checkpoint
+    ckpt_path = paths.format_list_checkpoint_path(enterprise_id, project_id)
+    if ckpt_path.exists():
+        store = CheckpointStore.load_or_create(ckpt_path, "format_list_confirm", {})
+        if "format:list_confirm" in store.items:
+            store.delete("format:list_confirm")
+            store.save()
+
+    return {"reset": item_key, "cleared": True}

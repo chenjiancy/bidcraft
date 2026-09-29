@@ -28,6 +28,7 @@ import {
   cancelParseTask,
   confirmParseChecklist,
   enterParseReview,
+  enterFormatReview,
   getEngineStatus,
   getParseChecklist,
   getParseConfig,
@@ -65,7 +66,9 @@ export default function ParsePage() {
   const currentEnterprise = useAppStore((s) => s.currentEnterprise)
   const currentProject = useAppStore((s) => s.currentProject)
   const isParseConfirmed = useAppStore((s) => s.isParseConfirmed)
+  const isFormatListConfirmed = useAppStore((s) => s.isFormatListConfirmed)
   const setParseStatus = useAppStore((s) => s.setParseStatus)
+  const setFormatStatus = useAppStore((s) => s.setFormatStatus)
   const navigate = useNavigate()
 
   const [phase, setPhase] = useState<Phase>('loading')
@@ -112,8 +115,12 @@ export default function ParsePage() {
     const s = await getParseStatus(eid, pid)
     setStatus(s)
     setParseStatus(s.parse_status)
+    // 同步更新格式清单状态（PARSE_CONFIRMED / FORMAT_REVIEW / FORMAT_CONFIRMED）
+    if (s.parse_status === 'FORMAT_CONFIRMED' || s.parse_status === 'FORMAT_REVIEW') {
+      setFormatStatus(s.parse_status)
+    }
     return s
-  }, [eid, pid, setParseStatus])
+  }, [eid, pid, setParseStatus, setFormatStatus])
 
   // 进入页面：引擎探针 + 已有解析状态 + 项目解析配置
   useEffect(() => {
@@ -131,12 +138,17 @@ export default function ParsePage() {
         setStatus(s)
         applyConfig(cfg)
         setParseStatus(s.parse_status)
-        // PARSED / SCORE_PARSED / PARSE_REVIEW / PARSE_CONFIRMED 均视为解析完成
+        if (s.parse_status === 'FORMAT_CONFIRMED' || s.parse_status === 'FORMAT_REVIEW') {
+          setFormatStatus(s.parse_status)
+        }
+        // PARSED / SCORE_PARSED / PARSE_REVIEW / PARSE_CONFIRMED / FORMAT_REVIEW / FORMAT_CONFIRMED 均视为解析完成
         if (
           s.parse_status === 'PARSED' ||
           s.parse_status === 'SCORE_PARSED' ||
           s.parse_status === 'PARSE_REVIEW' ||
-          s.parse_status === 'PARSE_CONFIRMED'
+          s.parse_status === 'PARSE_CONFIRMED' ||
+          s.parse_status === 'FORMAT_REVIEW' ||
+          s.parse_status === 'FORMAT_CONFIRMED'
         ) {
           setPhase('completed')
           setPercent(100)
@@ -153,7 +165,7 @@ export default function ParsePage() {
     return () => {
       cancelled = true
     }
-  }, [currentProject, currentEnterprise, eid, pid, setParseStatus, applyConfig])
+  }, [currentProject, currentEnterprise, eid, pid, setParseStatus, applyConfig, setFormatStatus])
 
   if (!currentProject || !currentEnterprise) {
     return (
@@ -797,13 +809,13 @@ export default function ParsePage() {
             )}
 
           {/* 门禁状态 */}
-          {isParseConfirmed && phase === 'completed' ? (
+          {isParseConfirmed && isFormatListConfirmed ? (
             <Alert
               type="success"
               showIcon
               icon={<CheckCircleOutlined />}
-              message="解析清单已确认（PARSE_CONFIRMED）"
-              description="商务标制作与标书检查模块已解锁。"
+              message="解析与格式清单均已确认（FORMAT_CONFIRMED）"
+              description="商务标制作与标书检查模块已完全解锁。"
               action={
                 <Space>
                   <Button size="small" type="primary" onClick={() => navigate('/bid')}>
@@ -813,6 +825,33 @@ export default function ParsePage() {
                     前往标书检查
                   </Button>
                 </Space>
+              }
+            />
+          ) : isParseConfirmed && !isFormatListConfirmed ? (
+            <Alert
+              type="warning"
+              showIcon
+              icon={<CheckCircleOutlined />}
+              message="解析清单已确认（PARSE_CONFIRMED），请完成格式清单确认"
+              description="商务标格式清单需逐条确认后，素材提取模块方可解锁。"
+              action={
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={async () => {
+                    setBusy(true)
+                    try {
+                      await enterFormatReview(eid, pid)
+                      navigate('/bid')
+                    } catch (err) {
+                      antdMessage.error(err instanceof Error ? err.message : String(err))
+                    } finally {
+                      setBusy(false)
+                    }
+                  }}
+                >
+                  进入格式清单确认
+                </Button>
               }
             />
           ) : phase !== 'running' && phase !== 'review' ? (

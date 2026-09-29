@@ -137,3 +137,69 @@ class ParseConfigSavedOut(BaseModel):
     changes: dict[str, Any] = {}
     # 受影响的 checkpoint item key（Task 9 物理层不受影响恒为空；Task 10 扩展）
     affected_items: list[str] = []
+
+
+# ---------- Task 14：商务标格式清单确认 ----------
+
+
+class FormatListItemOut(BaseModel):
+    """单条格式清单条目（从 manifest + 磁盘状态合成）。"""
+
+    key: str
+    seq: int
+    title: str
+    file: str
+    is_external: bool
+    source_stem: str
+    status: str  # "confirmed" | "missing" | "added"
+    missing_reason: str | None = None
+    added_file: str | None = None  # 新增条目时指向项目内路径
+
+
+class FormatListOut(BaseModel):
+    """GET /parse/format/list：返回格式清单全量数据。"""
+
+    parse_status: str
+    items: list[FormatListItemOut]
+    confirmed_at: str | None = None
+    total: int
+    confirmed_count: int
+    missing_count: int
+    external_count: int
+
+
+class FormatListAddPathIn(BaseModel):
+    """POST /parse/format/add_path：用户给本机文件路径新增清单条目。"""
+
+    file_path: str = Field(..., min_length=1, max_length=1000)
+    title: str | None = Field(default=None, max_length=200)
+
+
+class FormatListAddNameIn(BaseModel):
+    """POST /parse/format/add_name：用户只提供名称，由软件查找识别。"""
+
+    name: str = Field(..., min_length=1, max_length=200)
+
+
+class FormatListItemUpdateIn(BaseModel):
+    """POST /parse/format/update：编辑条目名称或更换文件。"""
+
+    title: str | None = Field(default=None, max_length=200)
+    file: str | None = Field(default=None, max_length=500)
+
+
+class FormatListConfirmIn(BaseModel):
+    """POST /parse/format/confirm：逐条确认格式清单。"""
+
+    items: list[dict[str, Any]] = Field(..., min_length=1)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class FormatListConfirmOut(BaseModel):
+    """POST /parse/format/confirm 响应。"""
+
+    parse_status: str
+    confirmed_at: str
+    list_path: str
+    total_items: int
+    confirmed_items: int

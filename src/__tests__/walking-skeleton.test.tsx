@@ -161,8 +161,9 @@ describe('Task 7/13: Walking Skeleton 端到端', () => {
 
   it('确认后可进入商务标页面', () => {
     useAppStore.getState().setParseConfirmed(true)
+    useAppStore.getState().setFormatStatus('FORMAT_CONFIRMED')
     renderApp('/bid')
-    expect(screen.getByText(/素材提取、模板匹配与比对/)).toBeInTheDocument()
+    expect(screen.getByText('商务标格式清单确认')).toBeInTheDocument()
   })
 
   it('重置确认后商务标再次锁定', () => {

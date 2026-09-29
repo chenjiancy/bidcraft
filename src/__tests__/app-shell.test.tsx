@@ -38,8 +38,9 @@ describe('应用外壳与导航', () => {
 
   it('确认清单后业务模块解锁、可正常进入', () => {
     useAppStore.getState().setParseConfirmed(true)
+    useAppStore.getState().setFormatStatus('FORMAT_CONFIRMED')
     renderApp('/bid')
-    expect(screen.getByText(/素材提取、模板匹配与比对/)).toBeInTheDocument()
+    expect(screen.getByText('商务标格式清单确认')).toBeInTheDocument()
     expect(screen.queryByText('模块未解锁')).not.toBeInTheDocument()
   })
 })
