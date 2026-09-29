@@ -13,6 +13,8 @@ Task 14 扩展：``PARSE_CONFIRMED → FORMAT_REVIEW → FORMAT_CONFIRMED → MA
 Task 16 扩展：``MATERIAL_LOOP → MATERIAL_CONFIRMED``（提取清单已保存）。
 Task 18 扩展：``MATERIAL_CONFIRMED → TEMPLATE_MATCHED → TEMPLATE_REVIEW → READY_TO_RENDER``
 （模板匹配 + 语义比对 + 差异确认；上游重解析使比对作废，回退 MATERIAL_CONFIRMED）。
+Task 19 扩展：``READY_TO_RENDER → RENDERING → RENDERED``
+（逐章 docxtpl 渲染；渲染中可取消回 READY_TO_RENDER；渲染完成后进入 RENDERED）。
 """
 
 from __future__ import annotations
@@ -34,6 +36,8 @@ ParseStatus = Literal[
     "TEMPLATE_MATCHED",
     "TEMPLATE_REVIEW",
     "READY_TO_RENDER",
+    "RENDERING",
+    "RENDERED",
 ]
 
 INIT: ParseStatus = "INIT"
@@ -50,6 +54,8 @@ MATERIAL_CONFIRMED: ParseStatus = "MATERIAL_CONFIRMED"
 TEMPLATE_MATCHED: ParseStatus = "TEMPLATE_MATCHED"
 TEMPLATE_REVIEW: ParseStatus = "TEMPLATE_REVIEW"
 READY_TO_RENDER: ParseStatus = "READY_TO_RENDER"
+RENDERING: ParseStatus = "RENDERING"
+RENDERED: ParseStatus = "RENDERED"
 
 # 合法转换表（key=当前状态，value=可转入的状态集合）
 _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
@@ -80,8 +86,12 @@ _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
     TEMPLATE_MATCHED: frozenset({TEMPLATE_REVIEW, MATERIAL_CONFIRMED}),
     # TEMPLATE_REVIEW → READY_TO_RENDER（差异全部裁决完成）；可回退到 TEMPLATE_MATCHED
     TEMPLATE_REVIEW: frozenset({READY_TO_RENDER, TEMPLATE_MATCHED}),
-    # READY_TO_RENDER：可回退到 TEMPLATE_REVIEW（需重新裁决）
-    READY_TO_RENDER: frozenset({TEMPLATE_REVIEW}),
+    # READY_TO_RENDER：Task 19 → RENDERING；可回退到 TEMPLATE_REVIEW（需重新裁决）
+    READY_TO_RENDER: frozenset({RENDERING, TEMPLATE_REVIEW}),
+    # RENDERING：逐章渲染进行中；可取消回 READY_TO_RENDER
+    RENDERING: frozenset({RENDERED, READY_TO_RENDER}),
+    # RENDERED：渲染完成；可回退到 READY_TO_RENDER（重渲染）
+    RENDERED: frozenset({READY_TO_RENDER}),
 }
 
 
