@@ -56,9 +56,11 @@
   - 披露：修复 session.flush() 未 commit 导致数据未持久化（改为 session.commit()）；Windows rename 不覆盖已有文件（先 unlink 再 rename）；mark_all_as_deprecated 误排除当前版本（移除 version != 条件）
 - [x] Task 18：模板匹配与语义比对（TR-18.1～18.15 全部满足，PR #43；TemplateCompare 模型 + 迁移 f9e3d5a7b2c1；template_match.py 自动匹配/文件关联/语义比对/差异确认门禁；状态机 TEMPLATE_MATCHED→TEMPLATE_REVIEW→READY_TO_RENDER；/template-match API 9 端点；前端 TemplateMatchPage + /template-match 路由；pytest 257 passed + vitest 40 passed）
   - 披露：PR #42 因 base 分支删除被 GitHub 自动关闭，重新 rebase 后以 PR #43 合并；ruff/mypy 31+18 处门禁修复（未用导入/变量、sessionmaker 未实例化、para.style.name 可能为 None 等）；TemplatesPage 遗留 agency 变量未声明编译错误修复；未做真实样本窗口验证
+- [x] Task 19：docxtpl 逐章渲染（TR-19.1～19.10 全部满足，PR #44；render/placeholder.py 三类占位解析；render/service.py 渲染计划/A类/B类/图片闭环/docxtpl逐章/警告清单/跨页检测/一致性审计；api/render.py 9 个端点；前端 RenderPage.tsx + api/render.ts；generated_doc 模型+迁移+Repository；pytest + vitest 全绿；mypy + ruff + tsc + eslint 全绿）
+  - 披露：PR #42 因 base 删除被 close 后以 #43/#44 重新合并；CI 首次 Lint & Type Check 失败（ts 类型转换、Alert status processing 无效），二次 push 后全绿；未做真实样本窗口验证
 - 纪律复核：
-  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14 已遵守）
-  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13、14 已遵守）
+  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14、17、18、19 已遵守）
+  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13、14、17、18、19 已遵守）
 
 ## 验收阶段检查
 - [x] 阶段 1.0 验收标准（AC）已定义并全部满足（Task 1-7 全部 done，PR #13/#15/#17/#19/#22/#24/#26）
