@@ -479,6 +479,10 @@ def render_download(
 
     base_dir = p.project_dir(enterprise_id, project_id)
     file_path = base_dir / rec.file_path
+    # M13 修复：路径穿越防护
+    from app.parse.paths import ensure_within_project
+
+    ensure_within_project(base_dir, file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"文件不存在: {rec.file_path}")
 

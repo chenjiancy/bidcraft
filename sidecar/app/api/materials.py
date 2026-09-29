@@ -26,6 +26,9 @@ from app.schemas.material import (
     MaterialUpdateIn,
 )
 
+# M18 修复：上传文件大小限制（10MB）
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(require_sidecar_token)])
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -86,6 +89,14 @@ def create_material(
     import tempfile
     from pathlib import Path
 
+    # M18 修复：文件大小校验
+    file_size = file.size if file.size is not None else 0
+    if file_size > _MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件大小 {file_size} 超过限制 {_MAX_UPLOAD_BYTES // 1024 // 1024}MB",
+        )
+
     # 写入收件箱临时目录
     with tempfile.NamedTemporaryFile(suffix=file.filename or ".bin", delete=False) as tmp:
         tmp.write(file.file.read())
@@ -113,6 +124,16 @@ def create_material(
     except Exception:
         tmp_path.unlink(missing_ok=True)
         raise
+
+    # M10 修复：记录操作日志
+    from app.repositories.app_event import AppEventRepository
+
+    AppEventRepository(session, Scope(enterprise_id=enterprise_id)).record(
+        "material_create",
+        project_id=None,
+        payload={"material_id": material.id, "category": body.category},
+    )
+    session.commit()
 
     return _material_out(material)
 
@@ -220,6 +241,15 @@ def update_material(
             valid_until=body.valid_until,
         )
         session.commit()
+        # M10 修复：记录操作日志
+        from app.repositories.app_event import AppEventRepository
+
+        AppEventRepository(session, Scope(enterprise_id=enterprise_id)).record(
+            "material_update",
+            project_id=None,
+            payload={"material_id": material_id, "changes": body.model_dump(exclude_unset=True)},
+        )
+        session.commit()
         return _material_out(m)
     except NotFoundError:
         raise HTTPException(404, "素材不存在") from None
@@ -243,6 +273,13 @@ def delete_material(enterprise_id: str, material_id: str, session: SessionDep) -
         )
         rb.name = m.name
         rb.file_path = m.file_path
+        session.commit()
+        # M10 修复：记录操作日志
+        from app.repositories.app_event import AppEventRepository
+
+        AppEventRepository(session, Scope(enterprise_id=enterprise_id)).record(
+            "material_delete", project_id=None, payload={"material_id": material_id, "name": m.name}
+        )
         session.commit()
         return MaterialDeleteOut(deleted=material_id)
     except NotFoundError:

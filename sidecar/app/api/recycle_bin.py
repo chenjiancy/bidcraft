@@ -50,7 +50,11 @@ def list_system_recycle_bin(session: SessionDep) -> list:
 
 
 @router.post("/recycle-bin/{item_id}/restore")
-def restore_item(item_id: str, session: SessionDep) -> dict[str, object]:
+def restore_item(
+    item_id: str,
+    enterprise_id: str = Query(None, description="企业 ID"),
+    session: SessionDep = None,  # type: ignore[assignment]
+) -> dict[str, object]:
     bin_repo = RecycleBinRepository(session)
     try:
         bin_repo.get(item_id)
@@ -60,6 +64,18 @@ def restore_item(item_id: str, session: SessionDep) -> dict[str, object]:
     _, result = bin_repo.restore(item_id)
     if not result.get("restored"):
         raise HTTPException(status_code=400, detail=result.get("error", "恢复失败")) from None
+    # M10 修复：记录操作日志
+    from app.repositories.app_event import AppEventRepository
+    from app.repositories.base import Scope
+
+    eid = result.get("enterprise_id") or enterprise_id
+    if eid:
+        AppEventRepository(session, Scope(enterprise_id=str(eid))).record(
+            "recycle_bin_restore",
+            project_id=None,
+            payload={"item_id": item_id, "item_type": result.get("item_type")},
+        )
+        session.commit()
     return result
 
 

@@ -36,7 +36,7 @@ def _get_retention_days(session) -> int:
 
 
 def _purge_expired(session) -> int:
-    """物理清除过期条目，返回清除数量。"""
+    """物理清除过期条目，返回清除数量（M14：单条失败重试 3 次）。"""
     now = datetime.now(UTC)
     stmt = (
         select(RecycleBin)
@@ -50,11 +50,29 @@ def _purge_expired(session) -> int:
     bin_repo = RecycleBinRepository(session)
     purged = 0
     for item in items:
-        result = bin_repo.purge(item.id)
-        if result.get("purged"):
-            purged += 1
-        else:
-            logger.warning("清理回收站条目 %s 失败: %s", item.id, result.get("error"))
+        success = False
+        for attempt in range(3):
+            try:
+                result = bin_repo.purge(item.id)
+                if result.get("purged"):
+                    purged += 1
+                    success = True
+                    break
+                elif attempt < 2:
+                    err_msg = result.get("error") or "unknown"
+                    msg = f"清理条目 {item.id} 第{attempt + 1}次失败: {err_msg}"
+                    logger.warning(msg)
+                    time.sleep(5)
+            except Exception as exc:
+                if attempt < 2:
+                    msg = f"清理回收站条目 {item.id} 异常（第 {attempt + 1} 次）: {exc}"
+                    logger.warning(msg)
+                    time.sleep(5)
+                else:
+                    logger.exception("清理回收站条目 %s 最终失败", item.id)
+        if not success:
+            logger.error("清理回收站条目 %s 经 3 次重试仍失败，标记为 conflict", item.id)
+            item.status = "conflict"
     return purged
 
 
