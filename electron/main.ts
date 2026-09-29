@@ -186,6 +186,23 @@ app.whenReady().then(() => {
     return result.filePaths.map((path) => ({ name: basename(path), path }))
   })
 
+  // 素材文件选择（Task 15）：支持 PDF/Word/图片
+  ipcMain.handle('dialog:openMaterialFiles', async () => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+    const result = await dialog.showOpenDialog(win, {
+      title: '选择素材文件',
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        {
+          name: '素材文件 (PDF/Word/图片)',
+          extensions: ['pdf', 'doc', 'docx', 'png', 'jpg', 'jpeg', 'bmp', 'tiff'],
+        },
+      ],
+    })
+    if (result.canceled) return []
+    return result.filePaths.map((path) => ({ name: basename(path), path }))
+  })
+
   registerSidecarIpc()
   registerCredIpc()
 

@@ -364,7 +364,7 @@
   - 样本已就绪（含 parsed/ 逐章 docx 的项目）。
 
 ## Task 15: 素材库管理（层级/命名规范、收件箱归档、动态词典、版本快照）
-- **Status**: pending
+- **Status**: completed ✅ (PR #39)
 - **Priority**: high
 - **Depends On**: Task 14
 - **Description**:

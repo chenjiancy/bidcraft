@@ -34,6 +34,7 @@ export interface BidAPI {
   }
   dialog: {
     openBidFiles: () => Promise<Array<{ name: string; path: string }>>
+    openMaterialFiles: () => Promise<Array<{ name: string; path: string }>>
   }
   shell: {
     openDocxFile: (

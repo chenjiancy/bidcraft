@@ -1,4 +1,4 @@
-import { BankOutlined, SettingOutlined } from '@ant-design/icons'
+import { BankOutlined, FolderOutlined, SettingOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 
 export interface NavItem {
@@ -20,6 +20,7 @@ function decorative(icon: ReactNode): ReactNode {
  */
 export const NAV_ITEMS: NavItem[] = [
   { path: '/workspace', label: '企业/项目', icon: decorative(<BankOutlined />) },
+  { path: '/materials', label: '素材库', icon: decorative(<FolderOutlined />) },
 ]
 
 /** 导航栏底部固定项 */
