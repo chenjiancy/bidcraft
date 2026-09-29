@@ -1251,7 +1251,8 @@ def _merge_pdfs(
                 pass
             raise
         return True
-    except Exception:
+    except Exception as exc:
+        _emit_progress(emit, "error", message=f"PDF 合并异常: {type(exc).__name__}: {exc}")
         try:
             merged.close()
         except Exception:
@@ -1292,16 +1293,31 @@ def export_pdf(
     )
 
     if not pdf_paths:
-        return {"merged_path": "", "total_chapters": 0, "success": False, "error": "无可转换章节"}
+        return {
+            "merged_path": "",
+            "total_chapters": 0,
+            "success": False,
+            "error": "无可转换章节（LibreOffice 转换全部失败，可能未安装 soffice 或不在 PATH）",
+        }
 
     # 3. 合并
-    success = _merge_pdfs(pdf_paths, merged_path, emit, chapters=chapters)
+    merge_errors: list[str] = []
+
+    def capture_emit(stage: str, **kwargs: Any) -> None:
+        if stage == "error":
+            msg = kwargs.get("message", "")
+            if msg:
+                merge_errors.append(str(msg))
+        _emit_progress(emit, stage, **kwargs)
+
+    success = _merge_pdfs(pdf_paths, merged_path, capture_emit, chapters=chapters)
     if not success:
+        detail = "; ".join(merge_errors) if merge_errors else "未知原因"
         return {
             "merged_path": "",
             "total_chapters": len(chapters),
             "success": False,
-            "error": "PDF 合并失败",
+            "error": f"PDF 合并失败: {detail}",
         }
 
     # 4. 状态转换 RENDERED → EXPORTED
