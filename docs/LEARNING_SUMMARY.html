@@ -613,7 +613,7 @@
   当前 CI 状态：<strong>全绿</strong>。275 个 pytest 测试 + 40 个 vitest 测试全部通过，lint/typecheck 零警告。
 </div>
 
-<h3>6.2 CD（持续部署）—— ⚠️ 部分就绪</h3>
+<h3>6.2 CD（持续部署）—— ✅ 完整</h3>
 <table>
   <thead>
     <tr><th>维度</th><th>状态</th><th>说明</th></tr>
@@ -621,13 +621,13 @@
   <tbody>
     <tr><td>构建能力</td><td>✅ 已配置</td><td><code>electron-builder</code> 已配置 NSIS 安装包，<code>npm run dist</code> 可生成 .exe</td></tr>
     <tr><td>发布渠道</td><td>✅ 已配置</td><td><code>electron-builder.yml</code> 中 publish.provider 设为 GitHub，owner/repo 已填</td></tr>
-    <tr><td>自动发布 workflow</td><td>⏳ 未实现</td><td>打 <code>v*</code> tag 后自动触发构建 + 上传 GitHub Releases 的 workflow 尚未编写</td></tr>
+    <tr><td>自动发布 workflow</td><td>✅ 已实现</td><td><code>.github/workflows/cd.yml</code>：打 <code>v*</code> tag 后自动触发构建 + 上传 GitHub Releases（<code>softprops/action-gh-release@v2</code>）</td></tr>
     <tr><td>自动更新</td><td>✅ 已配置</td><td><code>electron-updater</code> 已引入，运行时会自动检测新版本</td></tr>
   </tbody>
 </table>
 
-<div class="alert alert-orange">
-  <strong>结论：</strong>CI 完整可用；CD 的构建和发布渠道已配置，但<strong>自动发布 workflow（tag → 构建 → Release）</strong>尚未编写，属于 Phase 2 待办。
+<div class="alert alert-green">
+  <strong>结论：</strong>CI 五层流水线完整，CD 自动发布已实现。打 <code>v*</code> tag 推送后即可自动完成构建 + 发布。
 </div>
 </section>
 
@@ -663,9 +663,8 @@ npm run dist
     <tr><th>方式</th><th>适用场景</th><th>操作步骤</th></tr>
   </thead>
   <tbody>
-    <tr><td>GitHub Releases</td><td>对外发布（配置自动发布 workflow 后）</td><td>git tag v0.1.0 → git push --tags → CI 自动构建 → 上传 Release</td></tr>
+    <tr><td>GitHub Releases（CD 自动）</td><td>对外发布新版本</td><td><code>git tag v0.2.0 && git push origin v0.2.0</code> → CD workflow 自动构建 + 上传 Release</td></tr>
     <tr><td>直接发送 .exe</td><td>个人分发/测试</td><td>本地 <code>npm run dist</code> → 发送 <code>release/BidCraft Setup 0.1.0.exe</code></td></tr>
-    <tr><td>GitHub Actions 手动触发</td><td>临时构建</td><td>GitHub 仓库 → Actions → "Build & Release" workflow → Run workflow</td></tr>
   </tbody>
 </table>
 
@@ -792,18 +791,24 @@ uv sync
 □ 测试覆盖：核心链路是否有集成测试？</code></pre>
 
 <h3>9.5 发布步骤（完整版）</h3>
-<pre><code># 1. 本地构建
+<pre><code># 1. 本地构建（可选，用于验证）
 npm run dist
 
 # 2. 本地安装测试
-# 运行 release/BidCraft Setup 0.1.0.exe，验证基本功能
+# 运行 release/BidCraft Setup *.exe，验证基本功能
 
-# 3. 打版本 tag
+# 3. 打版本 tag 并推送（触发 CD 自动发布）
 git tag v0.1.0
 git push origin v0.1.0
 
-# 4. （待 CD workflow 实现后）自动触发 Release 构建
-# 当前需手动上传到 GitHub Releases</code></pre>
+# 4. CD workflow 自动执行：
+#    → GitHub Actions 检测到 v* tag
+#    → npm ci + npm run dist 构建 NSIS 安装包
+#    → softprops/action-gh-release 上传 .exe 到 GitHub Releases
+#    → 同时生成 Release Notes（基于 commit messages）
+#
+# 5. 用户从 GitHub Releases 页面下载最新版本
+#    → 首次安装后，electron-updater 负责后续自动更新检测</code></pre>
 </section>
 
 <!-- ===== FOOTER ===== -->
