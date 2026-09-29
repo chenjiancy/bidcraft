@@ -11,7 +11,7 @@ class PlaceholderInfoOut(BaseModel):
     """渲染计划中单条占位符描述。"""
 
     name: str
-    type: Literal["a_class", "b_class", "image"]
+    type: str  # a_class / b_class / image
     description: str = ""
     value: str | None = None
     needs_manual: bool = False

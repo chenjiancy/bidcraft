@@ -33,7 +33,7 @@ from app.parse.state import (
     ensure_transition,
 )
 from app.render import service as render_service
-from app.render.placeholder import Placeholder
+from app.render.service import PlaceholderInfo
 from app.repositories.base import NotFoundError, Scope
 from app.repositories.generated_doc import GeneratedDocRepository
 from app.repositories.project import ProjectRepository
@@ -150,7 +150,7 @@ def confirm_render_plan(
     # 读取当前项目状态
     project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
 
-    current = project.parse_status  # type: ignore[attr-defined]
+    current = project.parse_status
     if current not in (READY_TO_RENDER, RENDERED):
         raise HTTPException(
             status_code=409,
@@ -217,7 +217,7 @@ async def render_start(
 
     project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
 
-    current = project.parse_status  # type: ignore[attr-defined]
+    current = project.parse_status
     if current != READY_TO_RENDER:
         raise HTTPException(
             status_code=409,
@@ -300,7 +300,7 @@ def render_status(
     _get_project_or_404(session, enterprise_id, project_id)
 
     project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
-    status = project.parse_status  # type: ignore[attr-defined]
+    status = project.parse_status
 
     ckpt = render_service._read_json(p.render_checkpoint_path(enterprise_id, project_id)) or {}
     current_chapter = ckpt.get("current_chapter")
@@ -338,10 +338,10 @@ def render_retry(
     _get_project_or_404(session, enterprise_id, project_id)
 
     project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
-    if project.parse_status not in (READY_TO_RENDER, RENDERING, RENDERED):  # type: ignore[attr-defined]
+    if project.parse_status not in (READY_TO_RENDER, RENDERING, RENDERED):
         raise HTTPException(
             status_code=409,
-            detail=f"当前状态 {project.parse_status} 不允许重渲染",  # type: ignore[attr-defined]
+            detail=f"当前状态 {project.parse_status} 不允许重渲染",
         )
 
     # 读取渲染计划
@@ -371,7 +371,7 @@ def render_retry(
             seq=target["seq"],
             template_path=target["template_path"],
             placeholders=[
-                Placeholder(
+                PlaceholderInfo(
                     name=ph["name"],
                     type=ph["type"],
                     description=ph.get("description", ""),
