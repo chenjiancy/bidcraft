@@ -220,7 +220,9 @@ class RecycleBinRepository:
                         select(Template).where(Template.id == ref_id)
                     ).scalar_one_or_none()
                     if tpl and tpl.path:
-                        tpl_path = Path(tpl.path)
+                        from app.parse import paths as path_utils
+
+                        tpl_path = path_utils.data_root() / tpl.path
                         if tpl_path.exists():
                             import shutil
 

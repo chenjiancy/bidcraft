@@ -86,7 +86,7 @@ def _load_template_chapters(template: Any) -> tuple[list[str], dict[str, Any]]:
     meta = template.meta
     chapter_stems = meta.get("chapters", [])
     # 尝试从实际 docx 文件补充章节名
-    template_dir = Path(template.path)
+    template_dir = path_utils.data_root() / template.path
     actual_names: list[str] = []
     for stem in chapter_stems:
         for ext in (".docx", ".doc"):
@@ -628,7 +628,7 @@ def copy_templates_to_work(
 
         for tid in template_ids:
             tpl = tpl_repo.get(tid)
-            src_dir = Path(tpl.path)
+            src_dir = path_utils.data_root() / tpl.path
             if not src_dir.is_dir():
                 raise ValueError(f"模板目录不存在: {tpl.path}")
 

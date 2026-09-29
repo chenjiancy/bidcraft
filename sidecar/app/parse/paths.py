@@ -289,7 +289,9 @@ def template_version_dir(
     enterprise_id: str, agency: str, doc_type: str, name: str, version: int
 ) -> Path:
     """某版本模板文件集所在目录：templates/<agency>/<doc_type>/<name>/v{version}/。"""
-    return templates_dir(enterprise_id) / agency / doc_type / safe_filename(name) / f"v{version}"
+    safe_agency = safe_filename(agency)
+    safe_name = safe_filename(name)
+    return templates_dir(enterprise_id) / safe_agency / doc_type / safe_name / f"v{version}"
 
 
 def init_templates_dirs(enterprise_id: str) -> list[Path]:
