@@ -3,6 +3,7 @@
 from app.models.app_event import AppEvent
 from app.models.config_kv import ConfigKV
 from app.models.enterprise import Enterprise
+from app.models.generated_doc import GeneratedDoc
 from app.models.llm_call_log import LLMCallLog
 from app.models.material import Material
 from app.models.material_extract import MaterialExtractItem
@@ -16,6 +17,7 @@ __all__ = [
     "AppEvent",
     "ConfigKV",
     "Enterprise",
+    "GeneratedDoc",
     "LLMCallLog",
     "Material",
     "MaterialExtractItem",

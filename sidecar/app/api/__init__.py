@@ -5,6 +5,7 @@ from app.api import (  # noqa: F401
     model_config,
     parse,
     recycle_bin,
+    render,
     template_match,
     templates,
     test_events,

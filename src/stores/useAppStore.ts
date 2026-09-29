@@ -16,6 +16,8 @@ const PARSE_CONFIRMED_STATUSES = [
   'TEMPLATE_MATCHED',
   'TEMPLATE_REVIEW',
   'READY_TO_RENDER',
+  'RENDERING',
+  'RENDERED',
 ]
 
 /**
@@ -30,6 +32,8 @@ const UNLOCKED_FORMAT_STATUSES = [
   'TEMPLATE_MATCHED',
   'TEMPLATE_REVIEW',
   'READY_TO_RENDER',
+  'RENDERING',
+  'RENDERED',
 ]
 
 /** 视为「素材提取清单已确认」的状态集合（MATERIAL_CONFIRMED 及其后续模板匹配状态）。 */
@@ -38,6 +42,8 @@ const MATERIAL_CONFIRMED_STATUSES = [
   'TEMPLATE_MATCHED',
   'TEMPLATE_REVIEW',
   'READY_TO_RENDER',
+  'RENDERING',
+  'RENDERED',
 ]
 
 export interface EnterpriseSummary {

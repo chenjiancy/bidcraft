@@ -222,6 +222,52 @@ def init_template_work_dir(enterprise_id: str, project_id: str) -> Path:
     return d
 
 
+# ---------- Task 19：渲染目录布局 ----------
+
+_OUTPUT = "output"
+_PDF = "pdf"
+_RENDER_PLAN = "render_plan.json"
+_WARNING_LIST = "warning_list.json"
+_AUDIT_RESULT = "audit_result.json"
+
+
+def output_dir(enterprise_id: str, project_id: str) -> Path:
+    """渲染产物目录：逐章 Word 输出。"""
+    return project_dir(enterprise_id, project_id) / _OUTPUT
+
+
+def pdf_dir(enterprise_id: str, project_id: str) -> Path:
+    """PDF 产物目录（Task 20 使用，Task 19 跨页检测也临时写入此目录）。"""
+    return project_dir(enterprise_id, project_id) / _PDF
+
+
+def render_plan_path(enterprise_id: str, project_id: str) -> Path:
+    """渲染计划 JSON 路径。"""
+    return project_dir(enterprise_id, project_id) / _RENDER_PLAN
+
+
+def warning_list_path(enterprise_id: str, project_id: str) -> Path:
+    """警告清单 JSON 路径。"""
+    return project_dir(enterprise_id, project_id) / _WARNING_LIST
+
+
+def audit_result_path(enterprise_id: str, project_id: str) -> Path:
+    """一致性审计结果 JSON 路径。"""
+    return project_dir(enterprise_id, project_id) / _AUDIT_RESULT
+
+
+def render_checkpoint_path(enterprise_id: str, project_id: str) -> Path:
+    """渲染 checkpoint 路径。"""
+    return checkpoints_dir(enterprise_id, project_id) / "render.json"
+
+
+def init_output_dir(enterprise_id: str, project_id: str) -> Path:
+    """确保 output/ 目录存在。"""
+    d = output_dir(enterprise_id, project_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
 # ---------- Task 17：模板库目录布局 ----------
 
 _TEMPLATE = "templates"
