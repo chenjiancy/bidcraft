@@ -52,7 +52,7 @@ function createWindow(): void {
 }
 
 /** 仅允许 /api/v1 下的常规路径（含可选 query string），杜绝 SSRF/任意路径探测 */
-const ALLOWED_ROUTE = /^\/api\/v1\/[a-z0-9]+(?:\/[a-z0-9]+)*(?:\?[^/]*)?$/i
+const ALLOWED_ROUTE = /^\/api\/v1\/[a-z0-9_]+(?:\/[a-z0-9_]+)*(?:\?[^/]*)?$/i
 
 /** 仅允许标准 HTTP 方法，杜绝任意动词 */
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
