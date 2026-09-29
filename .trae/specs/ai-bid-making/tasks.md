@@ -267,7 +267,7 @@
   - 【实施偏差，用户 2026-09-29 确认】① 决策 1=A'：三种源文件内容来源统一走 MinerU content_list（不直读原文件），章节边界仍 100% 复用 chapters.json 页码范围，TR-12.1/12.2/12.3 同实现；② 决策 2=A：产物目录为 `parse/docx/`（非本文档字面的 `parsed/`）；③ 决策 3=A：无"投标文件格式"章节时标 success + 空清单 + 事件提示，不阻塞；docx 下载接口/人工增删/地址链接不在本期范围。
   - 测试 172 passed（pytest）+ 32 passed（vitest），CI 五项全绿；未做真实样本窗口验证（fake MinerU 集成测试 + 单测覆盖，图片/坏表/空区间红字占位并计 red_flags）。
 ## Task 13: 解析清单 UI（逐条确认/增删、标红）+ 门禁解锁【原 Task 14，编号顺延】
-- **Status**: pending
+- **Status**: done（PR #37，2026-09-29 squash 合并 88d208f）
 - **Priority**: high
 - **Depends On**: Task 12
 - **Description**:
@@ -303,6 +303,8 @@
   - 商务标阶段的人工增删/地址链接回填属 Phase 1.2（spec FR-3 第 1 点）。
   - 状态机复用 PARSE_REVIEW→PARSE_CONFIRMED，不新增状态。
   - 样本已就绪（含完整解析产物的招标文件）。
+  - 【实施偏差】① docx Tab 不做增删（仅确认+打开文件），商务标阶段增删/地址链接留 Phase 1.2；② score_table 人工改分值后服务端不重算 total_score_check（保留人工兜底语义）；③ walking-skeleton 测试语义修正：解析完成（SCORE_PARSED）不再自动解锁，需 review+confirm 才 PARSE_CONFIRMED（spec 要求的正确行为）。
+  - 测试 178 passed（pytest）+ 32 passed（vitest），CI 五项全绿；未做真实样本窗口验证。
 
 ## 阶段 1.2：商务标生成（已细化）
 > **借鉴点参考**（详见 [yibiao-borrowing.md](file:///e:/bidcraft/bidcraft-master/docs/references/yibiao-borrowing.md)）：

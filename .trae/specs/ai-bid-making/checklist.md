@@ -44,9 +44,11 @@
   - 披露：评分表抽取为规则（关键词+正则），非标表格（复杂合并单元格）可能抽取不全，走 unrecognized 标红 + LLM 校验兜底；score:extract 失败不阻塞终态（回落 PARSED，可单项重试）；修复 pre-commit 拦下的 E501/F841 两处；补锁 jsonschema 4.26 入 uv.lock；真实样本窗口验证未做（测试以 fake MinerU + 单测覆盖）
 - [x] Task 12：投标文件格式章节化 docx（TR-12.1～12.7 全部满足，PR #36；三来源统一走 MinerU content_list + chapters.json 页码边界；docx_build 纯逻辑模块：格式章定位/封面整树兜底/HTML+MD 表格还原/仿宋正文/命名清洗与重名保序/路径穿越校验；产物 parse/docx/{stem}/ + manifest.json；stage 8 动态注册 docx:<stem>:<seq> checkpoint，单章失败不阻塞可单项重试；reset 源级/全量级联清理；status docx 摘要；前端「投标文件格式」摘要卡片）
   - 披露：三处实施偏差已经用户确认（决策1=A'统一 content_list 不直读原文件；决策2=A 目录 parse/docx/；决策3=A 无格式章空清单成功不阻塞）；图片/坏表/空区间红字占位计 red_flags 不静默丢失；未做真实样本窗口验证（fake MinerU 集成 +20 个相关测试覆盖）；docx 下载接口/人工增删/地址链接留 Phase 1.2
+- [x] Task 13：解析清单 UI（逐条确认/增删、标红）+ 门禁解锁（TR-13.1～13.10 全部满足，PR #37；状态机 SCORE_PARSED→PARSE_REVIEW→PARSE_CONFIRMED；三 Tab 清单复核组件：规则粗分/评分表/投标文件格式，逐条 Checkbox 确认；全条目 confirmed=true 硬校验才保存解锁；标红不阻断（anchor 失败/合计≠100/坏表）；docx 打开走 Electron IPC shell:openDocxFile 带路径校验；parse:confirm checkpoint + parse/confirmed/parse_checklist.json；上游重试 _invalidate_confirmed 回退；移除前端错误自动解锁，isParseConfirmed 由后端 PARSE_CONFIRMED 派生）
+  - 披露：walking-skeleton 测试语义修正（解析完成不再自动解锁，需 review+confirm）；docx Tab 不做增删留 Phase 1.2；score 人工改分不重算合计（人工兜底）；未做真实样本窗口验证
 - 纪律复核：
-  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12 已遵守）
-  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12 已遵守）
+  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13 已遵守）
+  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13 已遵守）
 
 ## 验收阶段检查
 - [x] 阶段 1.0 验收标准（AC）已定义并全部满足（Task 1-7 全部 done，PR #13/#15/#17/#19/#22/#24/#26）
