@@ -20,3 +20,5 @@ publish:
   provider: github
   owner: chenjiancy
   repo: bidcraft
+  publishAuto: false
+  releaseType: release
