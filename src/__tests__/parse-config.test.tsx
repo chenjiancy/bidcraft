@@ -34,6 +34,7 @@ function makeCallMock(
     checkpoint?: Record<string, unknown> | null
     extraction?: Record<string, unknown> | null
     score?: Record<string, unknown> | null
+    docx?: Record<string, unknown> | null
   } = {},
 ): ReturnType<typeof vi.fn> {
   return vi.fn((route: string, payload?: unknown, method?: string) => {
@@ -49,6 +50,7 @@ function makeCallMock(
         dedupe: null,
         extraction: opts.extraction ?? null,
         score: opts.score ?? null,
+        docx: opts.docx ?? null,
       })
     if (route.endsWith('/parse/config') && method === 'PUT') {
       const p = (payload ?? {}) as { selected?: string[]; llm_enabled?: boolean; llm_mode?: string }
@@ -98,6 +100,7 @@ async function renderParsePage(
     checkpoint?: Record<string, unknown> | null
     extraction?: Record<string, unknown> | null
     score?: Record<string, unknown> | null
+    docx?: Record<string, unknown> | null
   } = {},
 ) {
   const callMock = makeCallMock(opts)
@@ -321,5 +324,42 @@ describe('Task 9: 解析配置面板', () => {
     expect(screen.getByText('1 项')).toBeInTheDocument()
     expect(screen.getByText('已通过')).toBeInTheDocument()
     expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
+  it('TR-12.4/12.5: 投标文件格式摘要展示导出数量、封面与完成状态', async () => {
+    await renderParsePage({
+      status: 'SCORE_PARSED',
+      docx: {
+        sources: 1,
+        files: 3,
+        cover: true,
+        completed: true,
+        errors: 0,
+        red_flags: 0,
+        missing_format_sources: [],
+      },
+    })
+    await screen.findByText('投标文件格式（逐章 docx）')
+    expect(screen.getByText('3 个')).toBeInTheDocument()
+    expect(screen.getByText('已导出')).toBeInTheDocument()
+    expect(screen.getByText('已完成')).toBeInTheDocument()
+  })
+
+  it('TR-12/决策3A: 无格式章时提示未识别来源，导出为 0 不报错', async () => {
+    await renderParsePage({
+      status: 'SCORE_PARSED',
+      docx: {
+        sources: 1,
+        files: 0,
+        cover: false,
+        completed: true,
+        errors: 0,
+        red_flags: 0,
+        missing_format_sources: ['无格式章'],
+      },
+    })
+    await screen.findByText('投标文件格式（逐章 docx）')
+    expect(screen.getAllByText('无')).toHaveLength(2)
+    expect(screen.getByText(/未识别到「投标文件格式」章节：无格式章/)).toBeInTheDocument()
   })
 })
