@@ -200,6 +200,15 @@ def generate_render_plan(
             if ch:
                 chapter_seq[ch] = seq
 
+    # 尝试加载已有渲染计划，保留用户已确认的 B 类值
+    existing_plan: dict[str, dict[str, Any]] = {}
+    plan_path = p.render_plan_path(enterprise_id, project_id)
+    existing_data = _read_json(plan_path)
+    if existing_data and isinstance(existing_data, list):
+        for item in existing_data:
+            if isinstance(item, dict) and "chapter" in item:
+                existing_plan[item["chapter"]] = item
+
     items: list[RenderPlanItem] = []
     docx_files = sorted(tw_dir.rglob("*.docx"))
 
@@ -214,6 +223,14 @@ def generate_render_plan(
         # 解析占位符
         placeholders_raw: list[Placeholder] = parse_placeholders_from_docx(str(docx_path))
 
+        # 若已有渲染计划且该章节存在，保留用户已确认的 B 类值（C8 修复）
+        existing_item = existing_plan.get(chapter)
+        existing_ph_map: dict[str, dict[str, Any]] = {}
+        if existing_item and isinstance(existing_item.get("placeholders"), list):
+            for ph in existing_item["placeholders"]:
+                if isinstance(ph, dict) and "name" in ph:
+                    existing_ph_map[ph["name"]] = ph
+
         placeholder_infos: list[PlaceholderInfo] = []
         missing_count = 0
         for ph in placeholders_raw:
@@ -225,6 +242,11 @@ def generate_render_plan(
                 description=ph.description,
                 is_missing=ph.is_missing,
             )
+            # C8：保留已有 value / needs_manual
+            existing_ph = existing_ph_map.get(ph.name)
+            if existing_ph:
+                info.value = existing_ph.get("value")
+                info.needs_manual = existing_ph.get("needs_manual", False)
             if ph.is_missing:
                 missing_count += 1
             placeholder_infos.append(info)
