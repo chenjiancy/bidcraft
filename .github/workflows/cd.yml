@@ -36,6 +36,26 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      - name: Setup Python (sidecar)
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+
+      - name: Build sidecar exe
+        run: |
+          cd sidecar
+          uv pip install pyinstaller --python 3.12
+          uv run pyinstaller bidcraft-sidecar.spec --noconfirm
+          New-Item -ItemType Directory -Force -Path "../release/sidecar" | Out-Null
+          Copy-Item "dist/bidcraft-sidecar.exe" "../release/sidecar/bidcraft-sidecar.exe" -Force
+          Remove-Item build -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
+
       - name: Build NSIS installer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
