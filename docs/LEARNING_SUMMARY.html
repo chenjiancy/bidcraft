@@ -287,6 +287,8 @@
     <li><a href="#s5">五、Phase 1.1 / 1.2 完整功能清单</a></li>
     <li><a href="#s6">六、CI / CD 现状</a></li>
     <li><a href="#s7">七、如何发布与本地部署</a></li>
+    <li><a href="#s7-local">　7.6 本地部署到任意目录</a></li>
+    <li><a href="#s7-update">　7.7 自动升级机制</a></li>
     <li><a href="#s8">八、过程中的关键教训</a></li>
     <li><a href="#s9">九、如何复现本次开发流程</a></li>
   </ul>
@@ -684,6 +686,95 @@ npm run dist
     <tr><td><code>ELECTRON_RENDERER_URL</code></td><td>开发模式前端地址</td><td>由 electron-vite 自动注入</td></tr>
   </tbody>
 </table>
+
+<h3 id="s7-local">7.6 本地部署到任意目录</h3>
+<p>打包后只需复制一个目录即可在任意位置运行，无需安装程序。</p>
+
+<h4>结构说明</h4>
+<table>
+  <thead>
+    <tr><th>文件/目录</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>BidCraft.exe</code></td><td>主程序（Electron + React）</td></tr>
+    <tr><td><code>resources/app.asar</code></td><td>前端代码包（含 React 应用）</td></tr>
+    <tr><td><code>resources/sidecar/bidcraft-sidecar.exe</code></td><td>Python FastAPI 侧车（打包为单文件 exe，约 40 MB）</td></tr>
+    <tr><td><code>resources/sidecar/app/db/alembic/</code></td><td>Alembic 数据库迁移脚本（随 exe 分发）</td></tr>
+    <tr><td><code>data/</code></td><td>应用数据目录（数据库、素材、模板），首次运行时自动创建</td></tr>
+  </tbody>
+</table>
+
+<h4>部署步骤（以 D:\BidCraft 为例）</h4>
+<pre><code># 1. 创建目标目录
+mkdir D:\BidCraft
+
+# 2. 构建安装包（从项目根目录执行）
+npm run build                # 编译前端
+npx electron-builder --win --publish=never   # 构建 NSIS 安装包
+# 或使用 build-sidecar.ps1 同时构建侧车：
+.\scripts\build-sidecar.ps1
+
+# 3. 将 release/win-unpacked/ 整体复制到目标目录
+xcopy /E /I /Y release\win-unpacked\* D:\BidCraft\
+
+# 4. 配置桌面快捷方式
+# 右键桌面 → 新建快捷方式 → 浏览选择 D:\BidCraft\BidCraft.exe
+# 或使用 PowerShell（一次性命令）：
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\Desktop\BidCraft.lnk")
+$Shortcut.TargetPath = "D:\BidCraft\BidCraft.exe"
+$Shortcut.WorkingDirectory = "D:\BidCraft"
+$Shortcut.Description = "BidCraft AI标书制作"
+$Shortcut.Save()</code></pre>
+
+<div class="alert alert-green">
+  <strong>注意：</strong>侧车 exe（<code>bidcraft-sidecar.exe</code>）必须放在 <code>resources/sidecar/</code> 子目录下，
+  Electron 主进程通过 <code>join(process.resourcesPath, 'sidecar', 'bidcraft-sidecar.exe')</code> 定位它。
+  缺失会导致应用启动时报 "sidecar 尚未启动" 错误。
+</div>
+
+<h3 id="s7-update">7.7 自动升级机制</h3>
+<p>BidCraft 采用 <strong>electron-updater</strong> 实现零配置后台自动升级，用户无感知。</p>
+
+<h4>升级流程</h4>
+<pre><code>应用启动
+  ↓
+initUpdater(mainWindow) — 注册 GitHub Release 更新源
+  ↓
+autoUpdater.checkForUpdates() — 检查远程版本号
+  ↓
+  ├─ 有新版本 → autoDownload=true → 静默后台下载
+  │             autoInstallOnAppQuit=true → 关闭时自动安装并重启
+  │
+  └─ 已是最新版 → 静默结束</code></pre>
+
+<h4>前端 API（IPC 暴露）</h4>
+<table>
+  <thead>
+    <tr><th>方法</th><th>返回值</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>bid.update.checkForUpdates()</code></td><td><code>{ ok: boolean }</code></td><td>主动触发版本检查</td></tr>
+    <tr><td><code>bid.update.onStatus(cb)</code></td><td><code>() =&gt; void</code>（清理函数）</td><td>监听状态：<code>checking</code> / <code>available</code> / <code>downloaded</code> / <code>not_available</code> / <code>error</code></td></tr>
+    <tr><td><code>bid.update.onDownloadProgress(cb)</code></td><td><code>() =&gt; void</code></td><td>监听下载进度：<code>{ percent: number }</code></td></tr>
+  </tbody>
+</table>
+
+<h4>CD 自动发布完整流程</h4>
+<pre><code># 打 tag 触发 CD（workflow 自动构建 sidecar + Electron 安装包）
+git tag v0.2.0
+git push origin v0.2.0
+
+# GitHub Actions 执行：
+# 1. Setup Node.js 22 + Python 3.12 + uv
+# 2. Build sidecar exe（pyinstaller）→ release/sidecar/
+# 3. npm ci + npm run dist（electron-builder NSIS）
+# 4. softprops/action-gh-release 上传 .exe 到 GitHub Releases</code></pre>
+
+<div class="alert alert-info">
+  <strong>更新检查频率：</strong>electron-updater 默认每 10 分钟静默检查一次；应用启动时也检查一次。
+  首次推送新版本后，用户下次打开应用即可收到更新提示（或静默下载）。
+</div>
 </section>
 
 <!-- ===== 八、关键教训 ===== -->
