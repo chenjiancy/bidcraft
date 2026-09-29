@@ -275,7 +275,8 @@ def test_full_parse_pipeline_success(
     assert sorted(fake.calls) == ["招标文件正文", "资格证明"]
 
     status = db_client.get(f"/api/v1/enterprises/{eid}/projects/{pid}/parse/status").json()
-    assert status["parse_status"] == "PARSED"
+    # Task 11：score:extract 恒有且成功 → SCORE_PARSED
+    assert status["parse_status"] == "SCORE_PARSED"
     assert status["running"] is False
     items = {i["key"]: i for i in status["checkpoint"]["items"]}
     assert all(i["state"] == "success" for i in items.values())
@@ -423,7 +424,7 @@ def test_resume_skips_successful_items(
     assert fake2.calls == ["b文件", "c文件"]
 
     status = db_client.get(f"/api/v1/enterprises/{eid}/projects/{pid}/parse/status").json()
-    assert status["parse_status"] == "PARSED"
+    assert status["parse_status"] == "SCORE_PARSED"  # Task 11：score:extract 恒有且成功
     # 失败信息曾留痕：checkpoint attempts 反映重试过
     items = {i["key"]: i for i in status["checkpoint"]["items"]}
     assert items["mineru:b文件"]["attempts"] == 2
@@ -548,4 +549,4 @@ def test_state_change_events_recorded(
     transitions = [((r.payload or {})["from"], (r.payload or {})["to"]) for r in rows]
     assert ("INIT", "UPLOADED") in transitions
     assert ("UPLOADED", "PARSING") in transitions
-    assert ("PARSING", "PARSED") in transitions
+    assert ("PARSING", "SCORE_PARSED") in transitions  # Task 11：score:extract 恒有且成功

@@ -57,6 +57,15 @@ export interface ExtractionSummary {
   llm: Record<string, unknown> | null
 }
 
+export interface ScoreSummary {
+  categories: number
+  total_score: number | null
+  score_ok: boolean | null
+  red_flags: number
+  schema_validated: boolean | null
+  llm: Record<string, unknown> | null
+}
+
 export interface ParseStatus {
   parse_status: string
   running: boolean
@@ -65,6 +74,7 @@ export interface ParseStatus {
   chapters: Record<string, unknown> | null
   dedupe: Record<string, unknown> | null
   extraction: ExtractionSummary | null
+  score: ScoreSummary | null
 }
 
 // ---------- Task 9：解析配置 ----------

@@ -123,7 +123,8 @@ export default function ParsePage() {
         setEngine(eng)
         setStatus(s)
         applyConfig(cfg)
-        if (s.parse_status === 'PARSED') {
+        // PARSED（物理解析完成）/ SCORE_PARSED（评分表已解析，Task 11）均视为解析完成
+        if (s.parse_status === 'PARSED' || s.parse_status === 'SCORE_PARSED') {
           setPhase('completed')
           setParseConfirmed(true)
           setPercent(100)
@@ -637,6 +638,46 @@ export default function ParsePage() {
                 {status.extraction.llm && (
                   <Text>
                     LLM 校验：<Tag>{String(status.extraction.llm.status ?? 'not_run')}</Tag>
+                  </Text>
+                )}
+              </Space>
+            </Card>
+          )}
+
+          {/* 评分表摘要（Task 11：评分办法解析结果概览；合计≠100 标红不阻断） */}
+          {phase === 'completed' && status?.score && (
+            <Card size="small" title="评分表摘要">
+              <Space wrap size="middle">
+                <Text>
+                  评分大类：<Tag color="blue">{status.score.categories} 个</Tag>
+                </Text>
+                <Text>
+                  合计分值：
+                  {status.score.score_ok === false ? (
+                    <Tag color="error">{status.score.total_score ?? '—'}（≠100，请核对）</Tag>
+                  ) : (
+                    <Tag color="success">{status.score.total_score ?? '—'}</Tag>
+                  )}
+                </Text>
+                <Text>
+                  风险提示：
+                  {status.score.red_flags > 0 ? (
+                    <Tag color="error">{status.score.red_flags} 项</Tag>
+                  ) : (
+                    <Tag color="success">无</Tag>
+                  )}
+                </Text>
+                <Text>
+                  结构校验：
+                  {status.score.schema_validated ? (
+                    <Tag color="success">已通过</Tag>
+                  ) : (
+                    <Tag color="warning">未通过</Tag>
+                  )}
+                </Text>
+                {status.score.llm && (
+                  <Text>
+                    LLM 校验：<Tag>{String(status.score.llm.status ?? 'not_run')}</Tag>
                   </Text>
                 )}
               </Space>

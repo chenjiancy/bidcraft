@@ -33,6 +33,7 @@ function makeCallMock(
     putResult?: Record<string, unknown>
     checkpoint?: Record<string, unknown> | null
     extraction?: Record<string, unknown> | null
+    score?: Record<string, unknown> | null
   } = {},
 ): ReturnType<typeof vi.fn> {
   return vi.fn((route: string, payload?: unknown, method?: string) => {
@@ -47,6 +48,7 @@ function makeCallMock(
         chapters: null,
         dedupe: null,
         extraction: opts.extraction ?? null,
+        score: opts.score ?? null,
       })
     if (route.endsWith('/parse/config') && method === 'PUT') {
       const p = (payload ?? {}) as { selected?: string[]; llm_enabled?: boolean; llm_mode?: string }
@@ -95,6 +97,7 @@ async function renderParsePage(
     putResult?: Record<string, unknown>
     checkpoint?: Record<string, unknown> | null
     extraction?: Record<string, unknown> | null
+    score?: Record<string, unknown> | null
   } = {},
 ) {
   const callMock = makeCallMock(opts)
@@ -290,6 +293,33 @@ describe('Task 9: 解析配置面板', () => {
     expect(screen.getByText('招标')).toBeInTheDocument()
     expect(screen.getByText(/勾选要素：/)).toHaveTextContent('勾选要素：9 项，成功提取 7 项')
     expect(screen.getByText('2 项')).toBeInTheDocument()
+    expect(screen.getByText('done')).toBeInTheDocument()
+  })
+
+  it('TR-11.8: SCORE_PARSED 视为解析完成并解锁门禁', async () => {
+    await renderParsePage({ status: 'SCORE_PARSED' })
+    await screen.findByText('解析配置')
+    expect(screen.getByText('SCORE_PARSED')).toBeInTheDocument()
+    await screen.findByText(/解析清单已确认/)
+  })
+
+  it('TR-11.5/11.6: 评分表摘要展示大类/合计/结构校验，合计≠100 标红', async () => {
+    await renderParsePage({
+      status: 'SCORE_PARSED',
+      score: {
+        categories: 3,
+        total_score: 95,
+        score_ok: false,
+        red_flags: 1,
+        schema_validated: true,
+        llm: { status: 'done' },
+      },
+    })
+    await screen.findByText('评分表摘要')
+    expect(screen.getByText('3 个')).toBeInTheDocument()
+    expect(screen.getByText(/≠100，请核对/)).toBeInTheDocument()
+    expect(screen.getByText('1 项')).toBeInTheDocument()
+    expect(screen.getByText('已通过')).toBeInTheDocument()
     expect(screen.getByText('done')).toBeInTheDocument()
   })
 })
