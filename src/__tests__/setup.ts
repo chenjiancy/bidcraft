@@ -92,6 +92,7 @@ window.bid = {
           extraction: null,
           score: null,
           docx: null,
+          confirmed: null,
         })
       if (route.endsWith('/parse/config')) {
         const base = defaultParseConfig()
@@ -122,6 +123,9 @@ window.bid = {
   },
   dialog: {
     openBidFiles: () => Promise.resolve([]),
+  },
+  shell: {
+    openDocxFile: () => Promise.resolve({ opened: true, path: '/mock/docx.docx' }),
   },
   cred: {
     setApiKey: () => Promise.resolve({ success: true }),

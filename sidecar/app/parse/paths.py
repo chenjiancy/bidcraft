@@ -25,6 +25,7 @@ _PARSE = "parse"
 _RAW = "raw"
 _CHECKPOINTS = "checkpoints"
 _DOCX = "docx"
+_CONFIRMED = "confirmed"
 
 
 class PathEscapeError(Exception):
@@ -74,6 +75,16 @@ def docx_dir(enterprise_id: str, project_id: str) -> Path:
 
 def docx_manifest_path(enterprise_id: str, project_id: str) -> Path:
     return docx_dir(enterprise_id, project_id) / "manifest.json"
+
+
+def confirmed_dir(enterprise_id: str, project_id: str) -> Path:
+    """Task 13：人工确认后的最终清单目录。"""
+    return parse_dir(enterprise_id, project_id) / _CONFIRMED
+
+
+def checklist_path(enterprise_id: str, project_id: str) -> Path:
+    """Task 13：parse_checklist.json 路径。"""
+    return confirmed_dir(enterprise_id, project_id) / "parse_checklist.json"
 
 
 def ensure_within_project(base: Path, target: Path) -> Path:

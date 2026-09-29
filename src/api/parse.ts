@@ -76,6 +76,13 @@ export interface DocxSummary {
   missing_format_sources: string[]
 }
 
+export interface ConfirmedSummary {
+  confirmed_at: string | null
+  total_items: number
+  confirmed_items: number
+  all_confirmed: boolean
+}
+
 export interface ParseStatus {
   parse_status: string
   running: boolean
@@ -86,6 +93,125 @@ export interface ParseStatus {
   extraction: ExtractionSummary | null
   score: ScoreSummary | null
   docx: DocxSummary | null
+  confirmed: ConfirmedSummary | null
+}
+
+// ---------- Task 13：解析清单复核与确认 ----------
+
+export interface ExtractMatch {
+  source: string
+  chapter_path: string | null
+  heading: string | null
+  anchor: string | null
+  snippet: string | null
+  anchor_verified: boolean | null
+  constraints: string | null
+}
+
+export interface ExtractItem {
+  key: string
+  label: string
+  category: string
+  selected: boolean
+  status: string | null
+  matches: ExtractMatch[]
+}
+
+export interface ExtractList {
+  version: number
+  rules_version: string
+  generated_at: string
+  doc_type: Record<string, unknown> | null
+  items: ExtractItem[]
+  sections_nature: Record<string, unknown> | null
+  red_flags: Array<Record<string, unknown>>
+  llm: Record<string, unknown> | null
+}
+
+export interface ScoreItem {
+  name: string
+  score: number | null
+  materials: string[]
+  thresholds: unknown[]
+  line: number | null
+}
+
+export interface ScoreCategory {
+  name: string
+  source_chapter: string | null
+  source_stem: string | null
+  page_idx: number | null
+  items: ScoreItem[]
+}
+
+export interface ScoreTable {
+  generated_at: string
+  categories: ScoreCategory[]
+  total_score_check: { expected: number | null; actual: number | null; ok: boolean }
+  red_flags: Array<Record<string, unknown>>
+  schema_validated: boolean
+  llm: Record<string, unknown> | null
+}
+
+export interface DocxFile {
+  source_stem: string
+  seq: number
+  title: string
+  kind: string
+  file: string
+  start_page: number | null
+  end_page: number | null
+  state: string
+  error: string | null
+  red_flags: number
+  checkpoint_key: string
+}
+
+export interface DocxManifest {
+  generated_at: string
+  completed: boolean
+  total_files: number
+  sources: Array<{
+    source_stem: string
+    found: boolean
+    cover: boolean
+    note: string | null
+    sections: Array<Record<string, unknown>>
+    files: DocxFile[]
+  }>
+}
+
+export interface ParseChecklist {
+  parse_status: string
+  extraction: ExtractList | null
+  score: ScoreTable | null
+  docx: DocxManifest | null
+  confirmed: Record<string, unknown> | null
+  review_state: ConfirmedSummary | null
+}
+
+export interface ParseConfirmItem {
+  tab: 'extraction' | 'score' | 'docx'
+  item_id: string
+  confirmed: boolean
+  override?: Record<string, unknown>
+  deleted?: boolean
+}
+
+export interface ParseConfirmPayload {
+  items: ParseConfirmItem[]
+  extraction?: ExtractList
+  score?: ScoreTable
+  docx?: DocxManifest
+  note?: string
+}
+
+export interface ParseConfirmResult {
+  parse_status: string
+  confirmed_at: string
+  checklist_path: string
+  total_items: number
+  confirmed_items: number
 }
 
 // ---------- Task 9：解析配置 ----------
@@ -190,4 +316,36 @@ export function updateParseConfig(
     { selected, llm_enabled: llmEnabled, llm_mode: llmMode },
     'PUT',
   ) as Promise<ParseConfigSaveResult>
+}
+
+// ---------- Task 13：解析清单复核与确认 ----------
+
+export function getParseChecklist(
+  enterpriseId: string,
+  projectId: string,
+): Promise<ParseChecklist> {
+  return window.bid.sidecar.call(
+    projectRoute(enterpriseId, projectId, 'checklist'),
+  ) as Promise<ParseChecklist>
+}
+
+export function enterParseReview(
+  enterpriseId: string,
+  projectId: string,
+): Promise<{ parse_status: string; review_started_at: string }> {
+  return window.bid.sidecar.call(projectRoute(enterpriseId, projectId, 'review'), {}) as Promise<{
+    parse_status: string
+    review_started_at: string
+  }>
+}
+
+export function confirmParseChecklist(
+  enterpriseId: string,
+  projectId: string,
+  payload: ParseConfirmPayload,
+): Promise<ParseConfirmResult> {
+  return window.bid.sidecar.call(
+    projectRoute(enterpriseId, projectId, 'confirm'),
+    payload,
+  ) as Promise<ParseConfirmResult>
 }

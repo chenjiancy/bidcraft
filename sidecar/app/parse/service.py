@@ -225,12 +225,16 @@ def register_sources(
         paths.extract_list_path(e_dir, p_dir),
         paths.score_table_path(e_dir, p_dir),
         paths.docx_manifest_path(e_dir, p_dir),
+        paths.checklist_path(e_dir, p_dir),
     ):
         if stale.is_file():
             stale.unlink()
     stale_docx_dir = paths.docx_dir(e_dir, p_dir)
     if stale_docx_dir.is_dir():
         shutil.rmtree(stale_docx_dir)
+    stale_confirmed_dir = paths.confirmed_dir(e_dir, p_dir)
+    if stale_confirmed_dir.is_dir():
+        shutil.rmtree(stale_confirmed_dir)
 
     with factory() as session:
         project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
@@ -1392,6 +1396,19 @@ def _docx_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+def _confirmed_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    items = payload.get("items") or []
+    confirmed = sum(1 for i in items if i.get("confirmed"))
+    return {
+        "confirmed_at": payload.get("confirmed_at"),
+        "total_items": len(items),
+        "confirmed_items": confirmed,
+        "all_confirmed": confirmed == len(items) and len(items) > 0,
+    }
+
+
 def get_status(
     factory: sessionmaker[Session],
     enterprise_id: str,
@@ -1425,11 +1442,19 @@ def get_status(
         "docx": _docx_summary(
             _read_json(paths.docx_manifest_path(enterprise_id, project_id), None)
         ),
+        "confirmed": _confirmed_summary(
+            _read_json(paths.checklist_path(enterprise_id, project_id), None)
+        ),
         "checkpoint": checkpoint,
     }
 
 
-def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
+def reset_item(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    item: str | None,
+) -> None:
     """单项重试：重置 checkpoint 项并按依赖级联清除下游产物。
 
     - mineru:<k>     → 同时重置 chapters:<k> + extract 项（要素层依赖章节）
@@ -1438,6 +1463,7 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
     - preprocess:<f> → 删 verify/mineru/chapters/extract（指纹与解析输入可能变化）
     - dedupe         → 以上全部（分组计划可能变化）
     - extract:coarse → 连带重置 extract:llm（校验依赖粗分结果）
+    - 任何上游重试 → 回退 PARSE_REVIEW/PARSE_CONFIRMED → SCORE_PARSED（确认作废）
     """
     ckpt_path = paths.checkpoints_dir(enterprise_id, project_id) / f"{JOB_TYPE}.json"
     if not ckpt_path.is_file():
@@ -1573,6 +1599,12 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
         # 单文件重跑期间避免暴露该源的旧章节
         _remove_chapter_source(enterprise_id, project_id, item.split(":", 1)[1])
 
+    # Task 13：上游重试使确认作废（若当前处于复核/确认状态）
+    if item is not None:
+        _invalidate_confirmed(
+            factory, enterprise_id, project_id, reason="upstream_reset", item=item
+        )
+
 
 def _remove_chapter_source(enterprise_id: str, project_id: str, source_stem: str) -> None:
     path = _chapters_path(enterprise_id, project_id)
@@ -1584,3 +1616,259 @@ def _remove_chapter_source(enterprise_id: str, project_id: str, source_stem: str
         payload["sources"] = remaining
         payload["updated_at"] = _now()
         _write_json(path, payload)
+
+
+# ---------- Task 13：解析清单复核与确认 ----------
+
+
+def _invalidate_confirmed(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    *,
+    reason: str,
+    **extra: Any,
+) -> None:
+    """上游重试/重解析使确认作废：回退到 SCORE_PARSED + 删 checklist + reset checkpoint。
+
+    若当前状态不在 PARSE_REVIEW/PARSE_CONFIRMED，则什么也不做（幂等）。
+    """
+    with factory() as session:
+        scope = Scope(enterprise_id=enterprise_id)
+        repo = ProjectRepository(session, scope)
+        try:
+            project = repo.get(project_id)
+        except NotFoundError:
+            return
+        current = project.parse_status
+        if current not in (state.PARSE_REVIEW, state.PARSE_CONFIRMED):
+            return
+        state.ensure_transition(current, state.SCORE_PARSED)
+        project.parse_status = state.SCORE_PARSED
+        AppEventRepository(session, scope).record(
+            "parse_state_change",
+            project_id,
+            {"from": current, "to": state.SCORE_PARSED, "reason": reason, **extra},
+        )
+        session.commit()
+
+    # 删确认清单产物
+    ckpt = paths.checklist_path(enterprise_id, project_id)
+    if ckpt.is_file():
+        ckpt.unlink()
+    confirmed_d = paths.confirmed_dir(enterprise_id, project_id)
+    if confirmed_d.is_dir():
+        # 只删 confirmed/ 下的内容，保留目录本身（即使不存在也不报错）
+        for child in confirmed_d.iterdir():
+            child.unlink()
+
+    # reset parse:confirm checkpoint 项
+    ckpt_path = paths.checkpoints_dir(enterprise_id, project_id) / f"{JOB_TYPE}.json"
+    if ckpt_path.is_file():
+        store = CheckpointStore.load_or_create(
+            ckpt_path, JOB_TYPE, {"dedupe": "同名多格式去重分析"}
+        )
+        if "parse:confirm" in store.items:
+            store.reset("parse:confirm")
+
+
+def _collect_checklist_items(
+    extraction: dict[str, Any] | None,
+    score: dict[str, Any] | None,
+    docx: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    """收集三类清单中所有需确认的条目 ID。"""
+    items: list[dict[str, str]] = []
+    if extraction:
+        for item in extraction.get("items") or []:
+            if item.get("selected") and not (item.get("deleted")):
+                for i, _match in enumerate(item.get("matches") or []):
+                    items.append({"tab": "extraction", "item_id": f"{item['key']}:{i}"})
+                if not item.get("matches"):
+                    items.append({"tab": "extraction", "item_id": f"{item['key']}:0"})
+    if score:
+        for ci, cat in enumerate(score.get("categories") or []):
+            for ii, _si in enumerate(cat.get("items") or []):
+                items.append({"tab": "score", "item_id": f"{ci}:{ii}"})
+    if docx:
+        for src in docx.get("sources") or []:
+            for sec in src.get("sections") or []:
+                if sec.get("state") == "success" and sec.get("checkpoint_key"):
+                    items.append({"tab": "docx", "item_id": sec["checkpoint_key"]})
+    return items
+
+
+def get_checklist(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+) -> dict[str, Any]:
+    """GET /parse/checklist：返回三类产物全量 + 已有确认快照。"""
+    with factory() as session:
+        try:
+            project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
+        except NotFoundError:
+            raise ParseError("项目不存在") from None
+        parse_status = project.parse_status
+
+    return {
+        "parse_status": parse_status,
+        "extraction": _read_json(paths.extract_list_path(enterprise_id, project_id), None),
+        "score": _read_json(paths.score_table_path(enterprise_id, project_id), None),
+        "docx": _read_json(paths.docx_manifest_path(enterprise_id, project_id), None),
+        "confirmed": _read_json(paths.checklist_path(enterprise_id, project_id), None),
+        "review_state": _confirmed_summary(
+            _read_json(paths.checklist_path(enterprise_id, project_id), None)
+        ),
+    }
+
+
+def enter_review(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+) -> dict[str, Any]:
+    """POST /parse/review：进入清单复核（SCORE_PARSED → PARSE_REVIEW）。
+
+    幂等：已是 PARSE_REVIEW/PARSE_CONFIRMED 时直接返回当前状态。
+    """
+    with factory() as session:
+        scope = Scope(enterprise_id=enterprise_id)
+        repo = ProjectRepository(session, scope)
+        try:
+            project = repo.get(project_id)
+        except NotFoundError:
+            raise ParseError("项目不存在") from None
+        current = project.parse_status
+        if current in (state.PARSE_REVIEW, state.PARSE_CONFIRMED):
+            return {"parse_status": current, "review_started_at": _now()}
+        if current != state.SCORE_PARSED:
+            raise ParseError(f"当前状态 {current} 不可进入清单复核（需先完成解析至 SCORE_PARSED）")
+        state.ensure_transition(current, state.PARSE_REVIEW)
+        project.parse_status = state.PARSE_REVIEW
+        AppEventRepository(session, scope).record(
+            "parse_state_change",
+            project_id,
+            {"from": current, "to": state.PARSE_REVIEW, "reason": "enter_review"},
+        )
+        session.commit()
+
+    # 注册 parse:confirm checkpoint 项
+    ckpt_path = paths.checkpoints_dir(enterprise_id, project_id) / f"{JOB_TYPE}.json"
+    if ckpt_path.is_file():
+        store = CheckpointStore.load_or_create(
+            ckpt_path, JOB_TYPE, {"dedupe": "同名多格式去重分析"}
+        )
+        store._add_new_items({"parse:confirm": "解析清单人工确认"})
+    else:
+        # 首次（checkpoint 文件可能不存在——仅在异常场景）
+        store = CheckpointStore.load_or_create(
+            ckpt_path,
+            JOB_TYPE,
+            {"dedupe": "同名多格式去重分析", "parse:confirm": "解析清单人工确认"},
+        )
+
+    return {"parse_status": state.PARSE_REVIEW, "review_started_at": _now()}
+
+
+def confirm_checklist(
+    factory: sessionmaker[Session],
+    enterprise_id: str,
+    project_id: str,
+    items: list[dict[str, Any]],
+    extraction: dict[str, Any] | None = None,
+    score: dict[str, Any] | None = None,
+    docx: dict[str, Any] | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """POST /parse/confirm：保存确认后的清单 + 状态转换。
+
+    硬校验：所有条目必须 confirmed=true 才能保存解锁。
+    """
+    with factory() as session:
+        scope = Scope(enterprise_id=enterprise_id)
+        repo = ProjectRepository(session, scope)
+        try:
+            project = repo.get(project_id)
+        except NotFoundError:
+            raise ParseError("项目不存在") from None
+        current = project.parse_status
+        if current not in (state.PARSE_REVIEW, state.PARSE_CONFIRMED):
+            raise ParseError(f"当前状态 {current} 不可确认清单（需先进入复核 PARSE_REVIEW）")
+        session.close()
+
+    # 收集三类清单全量条目（若前端传了 override 则用 override，否则用磁盘原始）
+    ext_data = extraction or _read_json(paths.extract_list_path(enterprise_id, project_id), {})
+    score_data = score or _read_json(paths.score_table_path(enterprise_id, project_id), {})
+    docx_data = docx or _read_json(paths.docx_manifest_path(enterprise_id, project_id), {})
+
+    all_items = _collect_checklist_items(ext_data, score_data, docx_data)
+    if not all_items:
+        raise ParseError("清单为空，无法确认（请先完成解析）")
+
+    # 构建 confirmed 映射
+    confirmed_map: dict[str, bool] = {}
+    for ci in items:
+        confirmed_map[f"{ci['tab']}:{ci['item_id']}"] = ci.get("confirmed", False)
+
+    # 硬校验：每条必须 confirmed
+    unconfirmed: list[str] = []
+    for ai in all_items:
+        key = f"{ai['tab']}:{ai['item_id']}"
+        if not confirmed_map.get(key, False):
+            unconfirmed.append(key)
+
+    if unconfirmed:
+        raise ParseError(f"尚有 {len(unconfirmed)} 条未确认，无法保存：{unconfirmed[:5]}...")
+
+    # 写盘
+    confirmed_at = _now()
+    snapshot = {
+        "version": 1,
+        "generated_at": confirmed_at,
+        "extraction": ext_data,
+        "score": score_data,
+        "docx": docx_data,
+        "items": items,
+        "note": note,
+        "confirmed_at": confirmed_at,
+    }
+    checklist_p = paths.checklist_path(enterprise_id, project_id)
+    checklist_p.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(checklist_p, snapshot)
+
+    # checkpoint 标记成功
+    ckpt_path = paths.checkpoints_dir(enterprise_id, project_id) / f"{JOB_TYPE}.json"
+    if ckpt_path.is_file():
+        store = CheckpointStore.load_or_create(
+            ckpt_path, JOB_TYPE, {"dedupe": "同名多格式去重分析"}
+        )
+        store.mark_success(
+            "parse:confirm",
+            {
+                "checklist": str(
+                    checklist_p.relative_to(paths.project_dir(enterprise_id, project_id))
+                ).replace("\\", "/"),
+                "items": len(all_items),
+                "confirmed_at": confirmed_at,
+            },
+        )
+
+    # 状态转换
+    if current == state.PARSE_REVIEW:
+        _transition(
+            factory,
+            enterprise_id,
+            project_id,
+            state.PARSE_CONFIRMED,
+            "checklist_confirmed",
+            total_items=len(all_items),
+        )
+
+    return {
+        "parse_status": state.PARSE_CONFIRMED,
+        "confirmed_at": confirmed_at,
+        "checklist_path": "parse/confirmed/parse_checklist.json",
+        "total_items": len(all_items),
+        "confirmed_items": len(all_items),
+    }

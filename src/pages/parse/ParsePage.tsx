@@ -26,7 +26,10 @@ import { useNavigate } from 'react-router-dom'
 import { getApiKey } from '../../api/modelConfig'
 import {
   cancelParseTask,
+  confirmParseChecklist,
+  enterParseReview,
   getEngineStatus,
+  getParseChecklist,
   getParseConfig,
   getParseStatus,
   registerSources,
@@ -37,6 +40,7 @@ import {
   type EngineStatus,
   type LocalSourceFile,
   type LlmMode,
+  type ParseChecklist,
   type ParseConfig,
   type ParseConfigSaveResult,
   type ParseEvent,
@@ -44,10 +48,11 @@ import {
 } from '../../api/parse'
 import PagePlaceholder from '../../components/PagePlaceholder'
 import { useAppStore } from '../../stores/useAppStore'
+import { ParseChecklistReview } from './ParseChecklistReview'
 
 const { Title, Text } = Typography
 
-type Phase = 'loading' | 'idle' | 'running' | 'completed' | 'failed' | 'cancelled'
+type Phase = 'loading' | 'idle' | 'running' | 'completed' | 'failed' | 'cancelled' | 'review'
 
 const STATE_COLOR: Record<string, string> = {
   success: 'success',
@@ -60,7 +65,7 @@ export default function ParsePage() {
   const currentEnterprise = useAppStore((s) => s.currentEnterprise)
   const currentProject = useAppStore((s) => s.currentProject)
   const isParseConfirmed = useAppStore((s) => s.isParseConfirmed)
-  const setParseConfirmed = useAppStore((s) => s.setParseConfirmed)
+  const setParseStatus = useAppStore((s) => s.setParseStatus)
   const navigate = useNavigate()
 
   const [phase, setPhase] = useState<Phase>('loading')
@@ -77,6 +82,7 @@ export default function ParsePage() {
   const [llmMode, setLlmMode] = useState<LlmMode>('validate')
   const [reparseHint, setReparseHint] = useState(false)
   const [affectedItems, setAffectedItems] = useState<string[]>([])
+  const [checklistData, setChecklistData] = useState<ParseChecklist | null>(null)
 
   const eid = currentEnterprise?.id ?? ''
   const pid = currentProject?.id ?? ''
@@ -105,8 +111,9 @@ export default function ParsePage() {
   const refreshStatus = useCallback(async () => {
     const s = await getParseStatus(eid, pid)
     setStatus(s)
+    setParseStatus(s.parse_status)
     return s
-  }, [eid, pid])
+  }, [eid, pid, setParseStatus])
 
   // 进入页面：引擎探针 + 已有解析状态 + 项目解析配置
   useEffect(() => {
@@ -123,10 +130,15 @@ export default function ParsePage() {
         setEngine(eng)
         setStatus(s)
         applyConfig(cfg)
-        // PARSED（物理解析完成）/ SCORE_PARSED（评分表已解析，Task 11）均视为解析完成
-        if (s.parse_status === 'PARSED' || s.parse_status === 'SCORE_PARSED') {
+        setParseStatus(s.parse_status)
+        // PARSED / SCORE_PARSED / PARSE_REVIEW / PARSE_CONFIRMED 均视为解析完成
+        if (
+          s.parse_status === 'PARSED' ||
+          s.parse_status === 'SCORE_PARSED' ||
+          s.parse_status === 'PARSE_REVIEW' ||
+          s.parse_status === 'PARSE_CONFIRMED'
+        ) {
           setPhase('completed')
-          setParseConfirmed(true)
           setPercent(100)
         } else {
           setPhase('idle')
@@ -141,7 +153,7 @@ export default function ParsePage() {
     return () => {
       cancelled = true
     }
-  }, [currentProject, currentEnterprise, eid, pid, setParseConfirmed, applyConfig])
+  }, [currentProject, currentEnterprise, eid, pid, setParseStatus, applyConfig])
 
   if (!currentProject || !currentEnterprise) {
     return (
@@ -232,7 +244,6 @@ export default function ParsePage() {
     await refreshStatus()
     if (terminal.stage === 'completed') {
       setPhase('completed')
-      setParseConfirmed(true)
       setReparseHint(false)
       setAffectedItems([])
       antdMessage.success('招标文件解析完成')
@@ -616,6 +627,38 @@ export default function ParsePage() {
             />
           )}
 
+          {/* Task 13：解析清单复核 */}
+          {phase === 'review' && checklistData && (
+            <Card title="解析清单复核（逐条确认后保存解锁）">
+              <ParseChecklistReview
+                extraction={checklistData.extraction}
+                score={checklistData.score}
+                docx={checklistData.docx}
+                enterpriseId={eid}
+                projectId={pid}
+                saving={busy}
+                onCancel={() => {
+                  setChecklistData(null)
+                  setPhase('completed')
+                }}
+                onSave={async (payload) => {
+                  setBusy(true)
+                  try {
+                    await confirmParseChecklist(eid, pid, payload)
+                    await refreshStatus()
+                    setChecklistData(null)
+                    setPhase('completed')
+                    antdMessage.success('解析清单已确认，业务模块已解锁')
+                  } catch (err) {
+                    antdMessage.error(err instanceof Error ? err.message : String(err))
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              />
+            </Card>
+          )}
+
           {/* 要素提取摘要（Task 10：规则粗分 + LLM 校验结果概览） */}
           {phase === 'completed' && status?.extraction && (
             <Card size="small" title="要素提取摘要">
@@ -724,6 +767,35 @@ export default function ParsePage() {
             </Card>
           )}
 
+          {/* 进入清单复核按钮 */}
+          {phase === 'completed' &&
+            !isParseConfirmed &&
+            (status?.parse_status === 'SCORE_PARSED' ||
+              status?.parse_status === 'PARSE_REVIEW') && (
+              <Button
+                type="primary"
+                size="large"
+                icon={<CheckCircleOutlined />}
+                onClick={async () => {
+                  setBusy(true)
+                  try {
+                    await enterParseReview(eid, pid)
+                    const checklist = await getParseChecklist(eid, pid)
+                    setChecklistData(checklist)
+                    setPhase('review' as Phase)
+                    await refreshStatus()
+                  } catch (err) {
+                    antdMessage.error(err instanceof Error ? err.message : String(err))
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+                loading={busy}
+              >
+                进入清单复核（逐条确认后解锁）
+              </Button>
+            )}
+
           {/* 门禁状态 */}
           {isParseConfirmed && phase === 'completed' ? (
             <Alert
@@ -740,21 +812,14 @@ export default function ParsePage() {
                   <Button size="small" onClick={() => navigate('/check')}>
                     前往标书检查
                   </Button>
-                  <Button
-                    size="small"
-                    icon={<UndoOutlined />}
-                    onClick={() => setParseConfirmed(false)}
-                  >
-                    重置门禁
-                  </Button>
                 </Space>
               }
             />
-          ) : phase !== 'running' ? (
+          ) : phase !== 'running' && phase !== 'review' ? (
             <Alert
               type="info"
               message="模块门禁：未确认"
-              description="解析完成（PARSED）后自动解锁商务标制作与标书检查。"
+              description="请完成解析后进入清单复核，逐条确认后保存解锁商务标制作与标书检查。"
             />
           ) : null}
         </Space>
