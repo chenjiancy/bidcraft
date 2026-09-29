@@ -14,8 +14,15 @@ from app.api import (
     templates,
     test_events,
 )
+from app.tasks.recycle_cleanup import start_cleanup_scheduler
 
 app = FastAPI(title="BidCraft Sidecar", version="0.1.0")
+
+
+@app.on_event("startup")
+def _startup() -> None:
+    start_cleanup_scheduler()
+
 
 app.include_router(test_events.router)
 app.include_router(enterprises.router)

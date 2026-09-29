@@ -231,12 +231,15 @@ def update_material(
 def delete_material(enterprise_id: str, material_id: str, session: SessionDep) -> MaterialDeleteOut:
     repo = MaterialRepository(session, Scope(enterprise_id=enterprise_id))
     try:
+        m = repo.get(material_id)
         repo.soft_delete(material_id)
-        RecycleBinRepository(session).add(
+        rb = RecycleBinRepository(session).add(
             item_type="material",
             ref_id=material_id,
             enterprise_id=enterprise_id,
         )
+        rb.name = m.name
+        rb.file_path = m.file_path
         session.commit()
         return MaterialDeleteOut(deleted=material_id)
     except NotFoundError:

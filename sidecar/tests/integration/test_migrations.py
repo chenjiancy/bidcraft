@@ -33,7 +33,7 @@ def test_migration_builds_database_from_zero(
     assert not db_path.exists()
 
     cfg = Config(str(ALEMBIC_INI))
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "heads")
 
     # 迁移后：DB 文件存在，含全部核心表与版本表
     assert db_path.exists()
@@ -55,7 +55,7 @@ def test_migration_downgrade_removes_tables(
     db_path = data_root / "bidcraft.db"
 
     cfg = Config(str(ALEMBIC_INI))
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "heads")
     assert EXPECTED_TABLES <= _table_names(db_path)
 
     command.downgrade(cfg, "base")

@@ -148,7 +148,9 @@ def test_delete_project_goes_to_recycle_bin(db_client: TestClient) -> None:
     projs = db_client.get(f"/api/v1/enterprises/{ent['id']}/projects").json()
     assert all(p["id"] != proj_id for p in projs)
 
-    bin_items = db_client.get("/api/v1/recycle-bin").json()
+    bin_items = db_client.get(
+        f"/api/v1/recycle-bin?enterprise_id={ent['id']}&item_type=project"
+    ).json()
     assert any(i["item_type"] == "project" and i["ref_id"] == proj_id for i in bin_items)
 
 

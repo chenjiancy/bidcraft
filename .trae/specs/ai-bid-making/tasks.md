@@ -581,7 +581,7 @@
   - 样本已就绪（READY_TO_RENDER 状态项目：模板已比对、素材清单已保存）。
 
 ## Task 20: 转 PDF 与 PDF 合并（图片压缩推迟）
-- **Status**: pending
+-- **Status**: completed
 - **Priority**: high
 - **Depends On**: Task 19
 - **Description**:
