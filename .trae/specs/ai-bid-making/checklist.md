@@ -42,9 +42,11 @@
   - 披露：extract:llm 失败不阻塞 PARSED（可选增强，可单项重试）；配置变更 PUT 只返回 affected_items 由前端逐项 retry 续跑；API Key 仅 DPAPI 临时透传不落库；窗口验证样本（HTML→PDF）未入库
 - [x] Task 11：评分办法解析 → score_table.json（TR-11.1～11.10 全部满足，PR #35；rules/scoring 专用规则子集：大类/评分项/证明材料/门槛三类抽取+多来源合并+合计≠100 标红不阻断；JSON Schema 硬校验门禁 schema_validated；状态机 PARSED→SCORE_PARSED；score:extract/score:llm checkpoint 复用+reset 级联；LLM 专项校验完整性/合计/门槛遗漏；前端评分表摘要卡片）
   - 披露：评分表抽取为规则（关键词+正则），非标表格（复杂合并单元格）可能抽取不全，走 unrecognized 标红 + LLM 校验兜底；score:extract 失败不阻塞终态（回落 PARSED，可单项重试）；修复 pre-commit 拦下的 E501/F841 两处；补锁 jsonschema 4.26 入 uv.lock；真实样本窗口验证未做（测试以 fake MinerU + 单测覆盖）
+- [x] Task 12：投标文件格式章节化 docx（TR-12.1～12.7 全部满足，PR #36；三来源统一走 MinerU content_list + chapters.json 页码边界；docx_build 纯逻辑模块：格式章定位/封面整树兜底/HTML+MD 表格还原/仿宋正文/命名清洗与重名保序/路径穿越校验；产物 parse/docx/{stem}/ + manifest.json；stage 8 动态注册 docx:<stem>:<seq> checkpoint，单章失败不阻塞可单项重试；reset 源级/全量级联清理；status docx 摘要；前端「投标文件格式」摘要卡片）
+  - 披露：三处实施偏差已经用户确认（决策1=A'统一 content_list 不直读原文件；决策2=A 目录 parse/docx/；决策3=A 无格式章空清单成功不阻塞）；图片/坏表/空区间红字占位计 red_flags 不静默丢失；未做真实样本窗口验证（fake MinerU 集成 +20 个相关测试覆盖）；docx 下载接口/人工增删/地址链接留 Phase 1.2
 - 纪律复核：
-  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11 已遵守）
-  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11 已遵守）
+  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12 已遵守）
+  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12 已遵守）
 
 ## 验收阶段检查
 - [x] 阶段 1.0 验收标准（AC）已定义并全部满足（Task 1-7 全部 done，PR #13/#15/#17/#19/#22/#24/#26）

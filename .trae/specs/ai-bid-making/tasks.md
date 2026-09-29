@@ -234,7 +234,7 @@
   - 双通道模式推迟到后续迭代（与 Task 10 一致）。
   - 样本已就绪（含评分办法章节的招标文件）。
 ## Task 12: 投标文件格式章节化 docx【原 Task 13，编号顺延】
-- **Status**: pending
+- **Status**: done（PR #36，2026-09-29 squash 合并 f3c042b）
 - **Priority**: high
 - **Depends On**: Task 11
 - **Description**:
@@ -264,6 +264,8 @@
   - 状态机复用 SCORE_PARSED，不新增状态。
   - Task 11（评分办法解析）与 Task 12（投标文件格式章节化）逻辑上可并行（均依赖 Task 10 规则粗分），按编号顺序 Task 12 Depends On Task 11，开发时可按需调整顺序。
   - 样本已就绪（含投标文件格式章节的招标文件）。
+  - 【实施偏差，用户 2026-09-29 确认】① 决策 1=A'：三种源文件内容来源统一走 MinerU content_list（不直读原文件），章节边界仍 100% 复用 chapters.json 页码范围，TR-12.1/12.2/12.3 同实现；② 决策 2=A：产物目录为 `parse/docx/`（非本文档字面的 `parsed/`）；③ 决策 3=A：无"投标文件格式"章节时标 success + 空清单 + 事件提示，不阻塞；docx 下载接口/人工增删/地址链接不在本期范围。
+  - 测试 172 passed（pytest）+ 32 passed（vitest），CI 五项全绿；未做真实样本窗口验证（fake MinerU 集成测试 + 单测覆盖，图片/坏表/空区间红字占位并计 red_flags）。
 ## Task 13: 解析清单 UI（逐条确认/增删、标红）+ 门禁解锁【原 Task 14，编号顺延】
 - **Status**: pending
 - **Priority**: high
