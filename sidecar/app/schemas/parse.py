@@ -54,6 +54,8 @@ class ParseStatusOut(BaseModel):
     extraction: dict[str, Any] | None = None
     # Task 11：score_table.json 摘要（categories/total_score/合计校验/schema_validated/llm）
     score: dict[str, Any] | None = None
+    # Task 12：投标文件格式逐章 docx 摘要（files/cover/completed/errors/red_flags）
+    docx: dict[str, Any] | None = None
 
 
 # ---------- Task 9：解析配置 ----------

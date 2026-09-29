@@ -24,6 +24,7 @@ _SOURCE = "source"
 _PARSE = "parse"
 _RAW = "raw"
 _CHECKPOINTS = "checkpoints"
+_DOCX = "docx"
 
 
 class PathEscapeError(Exception):
@@ -64,6 +65,15 @@ def extract_list_path(enterprise_id: str, project_id: str) -> Path:
 
 def score_table_path(enterprise_id: str, project_id: str) -> Path:
     return parse_dir(enterprise_id, project_id) / "structured" / "score_table.json"
+
+
+def docx_dir(enterprise_id: str, project_id: str) -> Path:
+    """Task 12：投标文件格式逐章 docx 产物根目录（按源文件分子目录）。"""
+    return parse_dir(enterprise_id, project_id) / _DOCX
+
+
+def docx_manifest_path(enterprise_id: str, project_id: str) -> Path:
+    return docx_dir(enterprise_id, project_id) / "manifest.json"
 
 
 def ensure_within_project(base: Path, target: Path) -> Path:

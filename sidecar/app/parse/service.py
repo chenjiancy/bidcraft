@@ -32,7 +32,7 @@ from app.core.tasks import registry
 from app.parse import chapters as chapters_mod
 from app.parse import config as parse_config
 from app.parse import dedupe as dedupe_mod
-from app.parse import engine, llm_validate, paths, preprocess, score_llm, state
+from app.parse import docx_build, engine, llm_validate, paths, preprocess, score_llm, state
 from app.parse.checkpoint import CheckpointStore
 from app.parse.dedupe import SourceFile
 from app.repositories.app_event import AppEventRepository
@@ -57,7 +57,8 @@ _W_MINERU_END = 85
 _W_CHAPTERS_END = 92
 _W_EXTRACT_END = 94
 _W_SCORE_END = 97
-# LLM 校验收尾到 100
+_W_DOCX_END = 98
+# LLM 校验收尾到 99/100
 
 # LLM 并发上限（校验模式批量项）
 _LLM_CONCURRENCY = 4
@@ -214,7 +215,8 @@ def register_sources(
     payload["updated_at"] = _now()
     _write_json(_sources_path(e_dir, p_dir), payload)
 
-    # 新文件使既有解析产物失效：清 checkpoint/dedupe/chapters/extract/score（raw/work 重跑覆盖）
+    # 新文件使既有解析产物失效：清 checkpoint/dedupe/chapters/extract/score/docx
+    # （raw/work 重跑覆盖）
     ckpt = paths.checkpoints_dir(e_dir, p_dir) / f"{JOB_TYPE}.json"
     for stale in (
         ckpt,
@@ -222,9 +224,13 @@ def register_sources(
         _chapters_path(e_dir, p_dir),
         paths.extract_list_path(e_dir, p_dir),
         paths.score_table_path(e_dir, p_dir),
+        paths.docx_manifest_path(e_dir, p_dir),
     ):
         if stale.is_file():
             stale.unlink()
+    stale_docx_dir = paths.docx_dir(e_dir, p_dir)
+    if stale_docx_dir.is_dir():
+        shutil.rmtree(stale_docx_dir)
 
     with factory() as session:
         project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
@@ -655,7 +661,84 @@ async def run_parse(
                     }
                 )
 
-        # ---- stage 8: LLM 校验（Task 10，仅校验模式；失败不阻塞 PARSED） ----
+        # ---- stage 8: 投标文件格式章节化 docx（Task 12，确定性，按章失败不阻塞） ----
+        try:
+            docx_plans = await asyncio.to_thread(_plan_docx, eid, pid, store)
+            docx_sections = [s for p in docx_plans for s in p.sections]
+            content_lists = _content_lists_from_store(store, eid, pid)
+            total_docx = len(docx_sections)
+            if total_docx == 0:
+                emit(
+                    {
+                        "stage": "progress",
+                        "percent": _W_DOCX_END,
+                        "message": "未识别到「投标文件格式」章节，跳过 docx 章节化（可人工核对）",
+                    }
+                )
+            for i, section in enumerate(docx_sections):
+                key = section.checkpoint_key
+                if store.get(key).state == "success":
+                    continue
+                _check_cancel(cancel_event)
+                store.mark_running(key)
+                try:
+                    record = await asyncio.to_thread(
+                        docx_build.render_section,
+                        section,
+                        content_lists,
+                        paths.project_dir(eid, pid),
+                        paths.docx_dir(eid, pid),
+                    )
+                    store.mark_success(key, record)
+                    emit(
+                        {
+                            "stage": "progress",
+                            "percent": _w_between(_W_SCORE_END, _W_DOCX_END, i + 1, total_docx),
+                            "message": (
+                                f"格式章节已导出：{record['file']}"
+                                + (
+                                    f"（{record['red_flags']} 处需对照原文件）"
+                                    if record["red_flags"]
+                                    else ""
+                                )
+                            ),
+                        }
+                    )
+                except asyncio.CancelledError:
+                    store.mark_error(key, "用户取消")
+                    raise
+                except Exception as exc:
+                    # 单章失败：标 error + 留痕，其余章继续（TR-12.7 可单项重试）
+                    store.mark_error(key, str(exc))
+                    _record_event(
+                        factory,
+                        eid,
+                        pid,
+                        "parse_docx_error",
+                        {"item": key, "error": str(exc)[:500]},
+                    )
+                    emit(
+                        {
+                            "stage": "progress",
+                            "percent": _w_between(_W_SCORE_END, _W_DOCX_END, i + 1, total_docx),
+                            "message": f"格式章节导出失败（不影响其他章节）：{section.title}",
+                        }
+                    )
+            await asyncio.to_thread(_write_docx_manifest, eid, pid, docx_plans, store)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # 规划/manifest 级别异常不阻塞解析主线
+            _record_event(factory, eid, pid, "parse_docx_stage_error", {"error": str(exc)[:500]})
+            emit(
+                {
+                    "stage": "progress",
+                    "percent": _W_DOCX_END,
+                    "message": f"投标文件格式章节化失败（不影响解析结果）：{str(exc)[:120]}",
+                }
+            )
+
+        # ---- stage 9: LLM 校验（Task 10，仅校验模式；失败不阻塞 PARSED） ----
         if "extract:llm" in store.items and store.get("extract:llm").state != "success":
             _check_cancel(cancel_event)
             store.mark_running("extract:llm")
@@ -665,7 +748,7 @@ async def run_parse(
                 emit(
                     {
                         "stage": "progress",
-                        "percent": 100,
+                        "percent": 99,
                         "message": f"LLM 校验完成：{llm_out['validated']} 项已校验",
                     }
                 )
@@ -678,12 +761,12 @@ async def run_parse(
                 emit(
                     {
                         "stage": "progress",
-                        "percent": 100,
+                        "percent": 99,
                         "message": f"LLM 校验失败（不影响规则粗分结果）：{str(exc)[:120]}",
                     }
                 )
 
-        # ---- stage 9: 评分表 LLM 专项校验（Task 11，仅校验模式；失败不阻塞） ----
+        # ---- stage 10: 评分表 LLM 专项校验（Task 11，仅校验模式；失败不阻塞） ----
         if "score:llm" in store.items and store.get("score:llm").state != "success":
             _check_cancel(cancel_event)
             store.mark_running("score:llm")
@@ -1057,6 +1140,56 @@ def _safe_transition(
         pass
 
 
+# ---------- Task 12：投标文件格式章节化 docx ----------
+
+
+def _plan_docx(
+    enterprise_id: str, project_id: str, store: CheckpointStore
+) -> list[docx_build.SourcePlan]:
+    """读 chapters.json + MinerU content_list 制定逐章计划，并动态注册 checkpoint 项。"""
+    chapters_payload = _read_json(_chapters_path(enterprise_id, project_id), {"sources": []})
+    content_lists = _content_lists_from_store(store, enterprise_id, project_id)
+    plans = docx_build.plan_all_sources(chapters_payload, content_lists)
+    labels: dict[str, str] = {}
+    for plan in plans:
+        for section in plan.sections:
+            labels[section.checkpoint_key] = (
+                "投标文件封面导出（docx）"
+                if section.kind == "cover"
+                else f"格式章节导出（docx）：{section.title}"
+            )
+    store._add_new_items(labels)
+    return plans
+
+
+def _write_docx_manifest(
+    enterprise_id: str,
+    project_id: str,
+    plans: list[docx_build.SourcePlan],
+    store: CheckpointStore,
+) -> dict[str, Any]:
+    """按 checkpoint 实际状态回填文件清单并写 manifest.json（断点可重建）。"""
+    manifest = docx_build.assemble_manifest(plans, _now())
+    completed = True
+    for src in manifest["sources"]:
+        files: list[dict[str, Any]] = []
+        for section in src["sections"]:
+            key = str(section["checkpoint_key"])
+            item = store.items.get(key)
+            entry: dict[str, Any] = {k: v for k, v in section.items() if k != "checkpoint_key"}
+            if item is not None and item.state == "success" and item.output:
+                entry.update({"state": "success", **item.output})
+            else:
+                completed = False
+                entry["state"] = item.state if item is not None else "idle"
+                entry["error"] = item.error if item is not None else None
+            files.append(entry)
+        src["files"] = files
+    manifest["completed"] = completed
+    _write_json(paths.docx_manifest_path(enterprise_id, project_id), manifest)
+    return manifest
+
+
 def _w_between(start: int, end: int, done: int, total: int) -> int:
     if total <= 0:
         return end
@@ -1241,6 +1374,24 @@ def _score_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+def _docx_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    sources = payload.get("sources", [])
+    files = [f for src in sources for f in src.get("files", [])]
+    return {
+        "sources": len(sources),
+        "files": len(files),
+        "cover": any(f.get("kind") == "cover" and f.get("state") == "success" for f in files),
+        "completed": payload.get("completed"),
+        "errors": sum(1 for f in files if f.get("state") == "error"),
+        "red_flags": sum(int(f.get("red_flags", 0)) for f in files if f.get("state") == "success"),
+        "missing_format_sources": [
+            str(s.get("source_stem")) for s in sources if not s.get("found")
+        ],
+    }
+
+
 def get_status(
     factory: sessionmaker[Session],
     enterprise_id: str,
@@ -1270,6 +1421,9 @@ def get_status(
         ),
         "score": _score_summary(
             _read_json(paths.score_table_path(enterprise_id, project_id), None)
+        ),
+        "docx": _docx_summary(
+            _read_json(paths.docx_manifest_path(enterprise_id, project_id), None)
         ),
         "checkpoint": checkpoint,
     }
@@ -1317,6 +1471,40 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
         if stale.is_file():
             stale.unlink()
 
+    def _reset_docx_source(source_stem: str) -> None:
+        """单源章节/解析重跑：删该源的 docx checkpoint 项、产物子目录、manifest。"""
+        prefix = f"docx:{source_stem}:"
+        for key in [k for k in list(store.items) if k.startswith(prefix)]:
+            store.delete(key)
+        sub = paths.docx_dir(enterprise_id, project_id) / paths.safe_filename(source_stem)
+        if sub.is_dir():
+            shutil.rmtree(sub)
+        manifest = paths.docx_manifest_path(enterprise_id, project_id)
+        if manifest.is_file():
+            manifest.unlink()
+
+    def _reset_docx_all() -> None:
+        _delete_all(("docx:",))
+        root = paths.docx_dir(enterprise_id, project_id)
+        if root.is_dir():
+            shutil.rmtree(root)
+
+    # docx 单项重试：reset 会清空 output，先取出文件路径，稍后删除
+    docx_file_to_delete: Path | None = None
+    if item.startswith("docx:"):
+        output = store.get(item).output or {}
+        file_rel = output.get("file")
+        if isinstance(file_rel, str):
+            target = paths.docx_dir(enterprise_id, project_id) / file_rel
+            try:
+                paths.ensure_within_project(paths.project_dir(enterprise_id, project_id), target)
+                docx_file_to_delete = target
+            except paths.PathEscapeError:
+                docx_file_to_delete = None
+        manifest = paths.docx_manifest_path(enterprise_id, project_id)
+        if manifest.is_file():
+            manifest.unlink()
+
     if item == "extract:coarse":
         if "extract:llm" in store.items:
             store.reset("extract:llm")
@@ -1334,24 +1522,32 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
             store.reset("score:llm")
     elif item == "score:llm":
         pass
+    elif item.startswith("docx:"):
+        pass  # 章节化仅依赖 chapters，与要素/评分层无关
     elif item.startswith("mineru:"):
-        store.reset(f"chapters:{item.split(':', 1)[1]}")
+        stem = item.split(":", 1)[1]
+        store.reset(f"chapters:{stem}")
         _reset_extract()
         _reset_score()
+        _reset_docx_source(stem)
     elif item.startswith("chapters:"):
+        stem = item.split(":", 1)[1]
         _reset_extract()
         _reset_score()
+        _reset_docx_source(stem)
     elif item == "dedupe-verify":
         for key in [k for k in store.items if k.startswith("preprocess:")]:
             store.reset(key)
         _delete_all(("mineru:", "chapters:"))
         _reset_extract()
         _reset_score()
+        _reset_docx_all()
     elif item.startswith("preprocess:"):
         store.reset("dedupe-verify")
         _delete_all(("mineru:", "chapters:"))
         _reset_extract()
         _reset_score()
+        _reset_docx_all()
     elif item == "dedupe":
         store.reset("dedupe-verify")
         for key in [k for k in store.items if k.startswith("preprocess:")]:
@@ -1359,7 +1555,11 @@ def reset_item(enterprise_id: str, project_id: str, item: str | None) -> None:
         _delete_all(("mineru:", "chapters:"))
         _reset_extract()
         _reset_score()
+        _reset_docx_all()
     store.reset(item)
+
+    if docx_file_to_delete is not None and docx_file_to_delete.is_file():
+        docx_file_to_delete.unlink()
 
     # 上游重来时，汇总报告与章节总表作废（重跑后重新生成）
     if item in ("dedupe", "dedupe-verify") or item.startswith("preprocess:"):

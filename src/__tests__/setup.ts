@@ -91,6 +91,7 @@ window.bid = {
           dedupe: null,
           extraction: null,
           score: null,
+          docx: null,
         })
       if (route.endsWith('/parse/config')) {
         const base = defaultParseConfig()

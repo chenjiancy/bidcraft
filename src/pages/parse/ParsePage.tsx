@@ -684,6 +684,46 @@ export default function ParsePage() {
             </Card>
           )}
 
+          {/* 投标文件格式摘要（Task 12：逐章 docx 导出概览；地址链接/人工增删留 Phase 1.2） */}
+          {phase === 'completed' && status?.docx && (
+            <Card size="small" title="投标文件格式（逐章 docx）">
+              <Space wrap size="middle">
+                <Text>
+                  导出文档：
+                  {status.docx.files > 0 ? (
+                    <Tag color="blue">{status.docx.files} 个</Tag>
+                  ) : (
+                    <Tag>无</Tag>
+                  )}
+                </Text>
+                <Text>
+                  封面：
+                  {status.docx.cover ? <Tag color="success">已导出</Tag> : <Tag>无</Tag>}
+                </Text>
+                <Text>
+                  导出状态：
+                  {status.docx.errors > 0 ? (
+                    <Tag color="error">{status.docx.errors} 章失败（可单项重试）</Tag>
+                  ) : status.docx.completed ? (
+                    <Tag color="success">已完成</Tag>
+                  ) : (
+                    <Tag color="warning">未完成</Tag>
+                  )}
+                </Text>
+                {status.docx.red_flags > 0 && (
+                  <Text>
+                    需对照原文件：<Tag color="warning">{status.docx.red_flags} 处</Tag>
+                  </Text>
+                )}
+                {status.docx.missing_format_sources.length > 0 && (
+                  <Text type="secondary">
+                    未识别到「投标文件格式」章节：{status.docx.missing_format_sources.join('、')}
+                  </Text>
+                )}
+              </Space>
+            </Card>
+          )}
+
           {/* 门禁状态 */}
           {isParseConfirmed && phase === 'completed' ? (
             <Alert

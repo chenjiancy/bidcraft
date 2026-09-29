@@ -66,6 +66,16 @@ export interface ScoreSummary {
   llm: Record<string, unknown> | null
 }
 
+export interface DocxSummary {
+  sources: number
+  files: number
+  cover: boolean
+  completed: boolean | null
+  errors: number
+  red_flags: number
+  missing_format_sources: string[]
+}
+
 export interface ParseStatus {
   parse_status: string
   running: boolean
@@ -75,6 +85,7 @@ export interface ParseStatus {
   dedupe: Record<string, unknown> | null
   extraction: ExtractionSummary | null
   score: ScoreSummary | null
+  docx: DocxSummary | null
 }
 
 // ---------- Task 9：解析配置 ----------
