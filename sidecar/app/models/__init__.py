@@ -9,6 +9,7 @@ from app.models.material_extract import MaterialExtractItem
 from app.models.parse_config import ParseProjectConfig
 from app.models.project import Project
 from app.models.recycle_bin import RecycleBin
+from app.models.template import Template
 
 __all__ = [
     "AppEvent",
@@ -20,4 +21,5 @@ __all__ = [
     "ParseProjectConfig",
     "Project",
     "RecycleBin",
+    "Template",
 ]

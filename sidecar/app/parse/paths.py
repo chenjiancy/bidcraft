@@ -200,6 +200,37 @@ def init_project_materials_dirs(enterprise_id: str, project_id: str) -> list[Pat
     return [pm, inbox]
 
 
+# ---------- Task 17：模板库目录布局 ----------
+
+_TEMPLATE = "templates"
+
+# 文件类型常量（与 schema VALID_DOC_TYPES 对应）
+DOC_TYPE_LABELS: dict[str, str] = {
+    "bid": "招标",
+    "procurement": "采购",
+    "quotation": "询比价",
+}
+
+
+def templates_dir(enterprise_id: str) -> Path:
+    """企业共享模板库根目录。"""
+    return _enterprise_dir(enterprise_id) / _TEMPLATE
+
+
+def template_version_dir(
+    enterprise_id: str, agency: str, doc_type: str, name: str, version: int
+) -> Path:
+    """某版本模板文件集所在目录：templates/<agency>/<doc_type>/<name>/v{version}/。"""
+    return templates_dir(enterprise_id) / agency / doc_type / safe_filename(name) / f"v{version}"
+
+
+def init_templates_dirs(enterprise_id: str) -> list[Path]:
+    """初始化企业模板目录骨架。"""
+    base = templates_dir(enterprise_id)
+    base.mkdir(parents=True, exist_ok=True)
+    return [base]
+
+
 def ensure_within_project(base: Path, target: Path) -> Path:
     """确保 target 解析后位于 base 之内，否则拒绝（防路径穿越）。"""
     base_resolved = base.resolve()

@@ -9,6 +9,7 @@ from app.api import (
     model_config,
     parse,
     recycle_bin,
+    templates,
     test_events,
 )
 
@@ -21,6 +22,7 @@ app.include_router(model_config.router)
 app.include_router(parse.router)
 app.include_router(materials.router)
 app.include_router(material_extract.router)
+app.include_router(templates.router)
 
 
 @app.get("/health")

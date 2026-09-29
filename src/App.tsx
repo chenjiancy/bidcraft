@@ -9,6 +9,7 @@ import BidPage from './pages/bid/BidPage'
 import CheckPage from './pages/check/CheckPage'
 import MaterialsPage from './pages/materials/MaterialsPage'
 import MaterialsExtractPage from './pages/extract/MaterialsExtractPage'
+import TemplatesPage from './pages/templates/TemplatesPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import { useAppStore } from './stores/useAppStore'
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route index element={<Navigate to="/workspace" replace />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/materials" element={<MaterialsPage />} />
+          <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/parse" element={<ParsePage />} />
           {/* 商务标模块：PARSE_CONFIRMED 即可进入（格式清单复核在页内完成） */}
           <Route element={<RequireUnlock requireFormatConfirm={false} />}>
