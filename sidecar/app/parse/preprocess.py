@@ -16,6 +16,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from app.parse import paths
+
 CONVERT_TIMEOUT_SECONDS = 600
 
 _WINDOWS_CANDIDATES = (
@@ -127,4 +129,7 @@ async def convert_to_pdf(
     if not produced.is_file():
         detail = (stdout or b"").decode("utf-8", errors="replace")[-500:]
         raise PreprocessError(f"转换完成但未找到输出 PDF：{produced.name}；{detail}")
+
+    # C6 修复：同名 doc/docx 转换结果可能覆盖，返回唯一路径
+    produced = paths.unique_path(produced)
     return produced
