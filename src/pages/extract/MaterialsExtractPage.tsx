@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import * as api from '../../api/materialExtract'
 import type { CandidateGroup, ExtractItem } from '../../api/materialExtract'
 import { useAppStore } from '../../stores/useAppStore'
@@ -54,6 +55,7 @@ export default function MaterialsExtractPage() {
   const currentProject = useAppStore((s) => s.currentProject)
   const isMaterialConfirmed = useAppStore((s) => s.isMaterialConfirmed)
   const setMaterialStatus = useAppStore((s) => s.setMaterialStatus)
+  const navigate = useNavigate()
 
   const [items, setItems] = useState<ExtractItem[]>([])
   const [round, setRound] = useState(1)
@@ -472,6 +474,11 @@ export default function MaterialsExtractPage() {
               showIcon
               message="提取清单已确认保存（MATERIAL_CONFIRMED）"
               description="已保存的清单是后续渲染时提取素材的唯一依据；标记为「缺失」的材料将在渲染时占位并进入警告清单。"
+              action={
+                <Button size="small" type="primary" onClick={() => navigate('/template-match')}>
+                  进入模板匹配
+                </Button>
+              }
             />
           )}
           {!isMaterialConfirmed && stats.pending > 0 && (

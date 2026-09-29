@@ -10,6 +10,7 @@ import CheckPage from './pages/check/CheckPage'
 import MaterialsPage from './pages/materials/MaterialsPage'
 import MaterialsExtractPage from './pages/extract/MaterialsExtractPage'
 import TemplatesPage from './pages/templates/TemplatesPage'
+import TemplateMatchPage from './pages/template-match/TemplateMatchPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import { useAppStore } from './stores/useAppStore'
 
@@ -38,6 +39,8 @@ export default function App() {
           <Route element={<RequireUnlock />}>
             <Route path="/extract" element={<MaterialsExtractPage />} />
             <Route path="/check" element={<CheckPage />} />
+            {/* 模板匹配与语义比对：MATERIAL_CONFIRMED 后进入（Task 18） */}
+            <Route path="/template-match" element={<TemplateMatchPage />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/workspace" replace />} />
