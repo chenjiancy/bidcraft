@@ -132,12 +132,9 @@ def archive_material(
         tmp.replace(dest_path)
         written_paths.append(str(dest_path.relative_to(_path_base)))
 
-    final_path = written_paths[0]  # 第一页作为主文件路径
+    final_path = written_paths[0]  # 第一页作为主文件路径（相对 _path_base）
     # 企业共享素材：file_path 为绝对路径（purge 时直接 unlink）；项目素材：相对路径
-    if project_id:
-        file_path_val = str(dest_dir / final_path)
-    else:
-        file_path_val = str(path_utils.materials_dir(enterprise_id) / final_path)
+    file_path_val = str(_path_base / final_path)
     # Step 5: 入库（事务内）
     material = repo.create(
         enterprise_id=enterprise_id,
