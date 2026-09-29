@@ -10,6 +10,7 @@ Task 13 扩展：``SCORE_PARSED → PARSE_REVIEW → PARSE_CONFIRMED``
 （人工确认清单后解锁业务模块；上游重解析/重试使确认作废，回退 SCORE_PARSED）。
 Task 14 扩展：``PARSE_CONFIRMED → FORMAT_REVIEW → FORMAT_CONFIRMED → MATERIAL_LOOP``
 （商务标格式清单逐条确认后解锁素材提取；上游重解析使确认作废，回退 PARSE_CONFIRMED）。
+Task 16 扩展：``MATERIAL_LOOP → MATERIAL_CONFIRMED``（提取清单已保存）→ 进入模板匹配。
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ ParseStatus = Literal[
     "FORMAT_REVIEW",
     "FORMAT_CONFIRMED",
     "MATERIAL_LOOP",
+    "MATERIAL_CONFIRMED",
 ]
 
 INIT: ParseStatus = "INIT"
@@ -39,6 +41,7 @@ PARSE_CONFIRMED: ParseStatus = "PARSE_CONFIRMED"
 FORMAT_REVIEW: ParseStatus = "FORMAT_REVIEW"
 FORMAT_CONFIRMED: ParseStatus = "FORMAT_CONFIRMED"
 MATERIAL_LOOP: ParseStatus = "MATERIAL_LOOP"
+MATERIAL_CONFIRMED: ParseStatus = "MATERIAL_CONFIRMED"
 
 # 合法转换表（key=当前状态，value=可转入的状态集合）
 _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
@@ -61,8 +64,10 @@ _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
     FORMAT_REVIEW: frozenset({FORMAT_CONFIRMED, PARSE_CONFIRMED}),
     # Task 14：FORMAT_CONFIRMED → MATERIAL_LOOP（进入素材提取循环）；→ PARSE_CONFIRMED（回退）
     FORMAT_CONFIRMED: frozenset({MATERIAL_LOOP, PARSE_CONFIRMED}),
-    # Task 16：MATERIAL_LOOP → FORMAT_CONFIRMED（素材补充后回格式清单重确认）
-    MATERIAL_LOOP: frozenset({FORMAT_CONFIRMED}),
+    # Task 16：MATERIAL_LOOP → MATERIAL_CONFIRMED（提取清单已保存）
+    MATERIAL_LOOP: frozenset({MATERIAL_CONFIRMED, FORMAT_CONFIRMED}),
+    # MATERIAL_CONFIRMED：提取清单已保存，进入模板匹配阶段；素材不足时可回 MATERIAL_LOOP
+    MATERIAL_CONFIRMED: frozenset({MATERIAL_LOOP}),
 }
 
 

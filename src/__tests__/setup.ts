@@ -123,6 +123,7 @@ window.bid = {
   },
   dialog: {
     openBidFiles: () => Promise.resolve([]),
+    openMaterialFiles: () => Promise.resolve([]),
   },
   shell: {
     openDocxFile: () => Promise.resolve({ opened: true, path: '/mock/docx.docx' }),

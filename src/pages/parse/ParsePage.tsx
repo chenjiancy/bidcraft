@@ -62,6 +62,23 @@ const STATE_COLOR: Record<string, string> = {
   idle: 'default',
 }
 
+/** 已确认格式清单及之后的状态（素材提取循环/已确认）——均视为业务模块已解锁 */
+const FORMAT_UNLOCKED_STATUSES: readonly string[] = [
+  'FORMAT_CONFIRMED',
+  'MATERIAL_LOOP',
+  'MATERIAL_CONFIRMED',
+]
+
+/** 解析工作已结束的状态（渲染为 completed） */
+const PARSE_DONE_STATUSES: readonly string[] = [
+  'PARSED',
+  'SCORE_PARSED',
+  'PARSE_REVIEW',
+  'PARSE_CONFIRMED',
+  'FORMAT_REVIEW',
+  ...FORMAT_UNLOCKED_STATUSES,
+]
+
 export default function ParsePage() {
   const currentEnterprise = useAppStore((s) => s.currentEnterprise)
   const currentProject = useAppStore((s) => s.currentProject)
@@ -115,8 +132,8 @@ export default function ParsePage() {
     const s = await getParseStatus(eid, pid)
     setStatus(s)
     setParseStatus(s.parse_status)
-    // 同步更新格式清单状态（PARSE_CONFIRMED / FORMAT_REVIEW / FORMAT_CONFIRMED）
-    if (s.parse_status === 'FORMAT_CONFIRMED' || s.parse_status === 'FORMAT_REVIEW') {
+    // 同步格式清单状态（仅「已确认」后的状态计入；FORMAT_REVIEW 期间尚未确认）
+    if (FORMAT_UNLOCKED_STATUSES.includes(s.parse_status)) {
       setFormatStatus(s.parse_status)
     }
     return s
@@ -138,18 +155,12 @@ export default function ParsePage() {
         setStatus(s)
         applyConfig(cfg)
         setParseStatus(s.parse_status)
-        if (s.parse_status === 'FORMAT_CONFIRMED' || s.parse_status === 'FORMAT_REVIEW') {
+        if (FORMAT_UNLOCKED_STATUSES.includes(s.parse_status)) {
           setFormatStatus(s.parse_status)
         }
-        // PARSED / SCORE_PARSED / PARSE_REVIEW / PARSE_CONFIRMED / FORMAT_REVIEW / FORMAT_CONFIRMED 均视为解析完成
-        if (
-          s.parse_status === 'PARSED' ||
-          s.parse_status === 'SCORE_PARSED' ||
-          s.parse_status === 'PARSE_REVIEW' ||
-          s.parse_status === 'PARSE_CONFIRMED' ||
-          s.parse_status === 'FORMAT_REVIEW' ||
-          s.parse_status === 'FORMAT_CONFIRMED'
-        ) {
+        // PARSED / SCORE_PARSED / PARSE_REVIEW / PARSE_CONFIRMED / FORMAT_REVIEW /
+        // FORMAT_CONFIRMED / MATERIAL_LOOP / MATERIAL_CONFIRMED 均视为解析完成
+        if (PARSE_DONE_STATUSES.includes(s.parse_status)) {
           setPhase('completed')
           setPercent(100)
         } else {
@@ -815,10 +826,13 @@ export default function ParsePage() {
               showIcon
               icon={<CheckCircleOutlined />}
               message="解析与格式清单均已确认（FORMAT_CONFIRMED）"
-              description="商务标制作与标书检查模块已完全解锁。"
+              description="建议先完成素材提取清单（逐项查询匹配并确认缺失），再进入商务标制作与标书检查。"
               action={
-                <Space>
-                  <Button size="small" type="primary" onClick={() => navigate('/bid')}>
+                <Space wrap>
+                  <Button size="small" type="primary" onClick={() => navigate('/extract')}>
+                    前往素材提取清单
+                  </Button>
+                  <Button size="small" onClick={() => navigate('/bid')}>
                     前往商务标制作
                   </Button>
                   <Button size="small" onClick={() => navigate('/check')}>

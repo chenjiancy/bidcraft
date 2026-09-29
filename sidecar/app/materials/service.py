@@ -146,12 +146,32 @@ def archive_material(
     # Step 6: 更新动态词典
     _update_keyword_dict(session, enterprise_id, material.name, ocr_text)
 
+    # Step 6.5: 写入 FTS5 索引（Task 16 查询依据）
+    _index_material(enterprise_id, material)
+
     # Step 7: 清理收件箱
     if original_path.exists():
         original_path.unlink()
 
     session.commit()
     return material
+
+
+def _index_material(enterprise_id: str, material: Material) -> None:
+    """把素材写入企业级 FTS5 索引（失败不阻断归档，仅标记未索引）。"""
+    from app.materials import fts5 as fts5_mod
+    from app.parse.paths import fts5_db_path
+
+    try:
+        fts5_mod.fts5_add(
+            fts5_db_path(enterprise_id),
+            material.id,
+            material.name,
+            material.ocr_text or "",
+        )
+        material.indexed = True
+    except Exception:
+        material.indexed = False
 
 
 def _update_keyword_dict(session: Session, enterprise_id: str, name: str, ocr_text: str) -> None:
@@ -261,5 +281,6 @@ def archive_multiple_pages(
         ocr_text="\n".join(all_ocr) or None,
         valid_until=valid_until,
     )
+    _index_material(enterprise_id, material)
     session.commit()
     return material

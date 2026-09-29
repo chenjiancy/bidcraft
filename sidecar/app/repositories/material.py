@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.models._mixins import new_id
 from app.models.material import VALID_CATEGORIES, Material
@@ -21,7 +21,7 @@ class MaterialRepository:
 
     def _filter(self) -> Any:
         """按 Scope 过滤：企业共享 + 本项目独享。"""
-        query = select(Material).options(joinedload(Material))
+        query = select(Material)
         if self._scope:
             if self._scope.enterprise_id:
                 query = query.where(Material.enterprise_id == self._scope.enterprise_id)
@@ -132,14 +132,18 @@ class MaterialRepository:
         material.status = "active"
         return material
 
-    def delete_fts5_index(self, material_id: str) -> None:
+    def reindex_fts5(self, material_id: str, db_path) -> None:
+        """更新 FTS5 索引（归档/编辑后调用）。"""
+        from app.materials.fts5 import fts5_add  # 延迟导入防循环
+
+        material = self.get(material_id)
+        fts5_add(db_path, material.id, material.name, material.ocr_text or "")
+        material.indexed = True
+
+    def delete_fts5_index(self, material_id: str, db_path) -> None:
         """从 FTS5 虚表移除记录。"""
         from app.materials.fts5 import fts5_remove  # 延迟导入防循环
 
         material = self.get(material_id)
         material.indexed = False
-        self._session.flush()
-        try:
-            fts5_remove(self._session, material.id)
-        except Exception:
-            pass
+        fts5_remove(db_path, material.id)

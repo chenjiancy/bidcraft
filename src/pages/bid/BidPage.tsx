@@ -82,8 +82,8 @@ export default function BidPage() {
     setConfirmState(cs)
   }, [eid, pid])
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadList()
   }, [loadList])
 
@@ -265,7 +265,7 @@ export default function BidPage() {
                 okText="移除"
                 cancelText="取消"
               >
-                <Button type="link" size="small" danger disabled={it.status === 'removed'}>
+                <Button type="link" size="small" danger onClick={() => void handleRemove(it)}>
                   移除
                 </Button>
               </Popconfirm>
