@@ -15,6 +15,7 @@ Task 18 扩展：``MATERIAL_CONFIRMED → TEMPLATE_MATCHED → TEMPLATE_REVIEW �
 （模板匹配 + 语义比对 + 差异确认；上游重解析使比对作废，回退 MATERIAL_CONFIRMED）。
 Task 19 扩展：``READY_TO_RENDER → RENDERING → RENDERED``
 （逐章 docxtpl 渲染；渲染中可取消回 READY_TO_RENDER；渲染完成后进入 RENDERED）。
+Task 20 扩展：``RENDERED → EXPORTED``（转 PDF + 合并导出；EXPORTED 后成果不可变）。
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ ParseStatus = Literal[
     "READY_TO_RENDER",
     "RENDERING",
     "RENDERED",
+    "EXPORTED",
 ]
 
 INIT: ParseStatus = "INIT"
@@ -56,6 +58,7 @@ TEMPLATE_REVIEW: ParseStatus = "TEMPLATE_REVIEW"
 READY_TO_RENDER: ParseStatus = "READY_TO_RENDER"
 RENDERING: ParseStatus = "RENDERING"
 RENDERED: ParseStatus = "RENDERED"
+EXPORTED: ParseStatus = "EXPORTED"
 
 # 合法转换表（key=当前状态，value=可转入的状态集合）
 _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
@@ -90,8 +93,10 @@ _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
     READY_TO_RENDER: frozenset({RENDERING, TEMPLATE_REVIEW}),
     # RENDERING：逐章渲染进行中；可取消回 READY_TO_RENDER
     RENDERING: frozenset({RENDERED, READY_TO_RENDER}),
-    # RENDERED：渲染完成；可回退到 READY_TO_RENDER（重渲染）
-    RENDERED: frozenset({READY_TO_RENDER}),
+    # RENDERED：渲染完成；可回退到 READY_TO_RENDER（重渲染）或进入 EXPORTED（转 PDF 导出）
+    RENDERED: frozenset({READY_TO_RENDER, EXPORTED}),
+    # EXPORTED：导出完成，成果不可变
+    EXPORTED: frozenset(),
 }
 
 

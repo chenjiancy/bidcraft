@@ -27,6 +27,7 @@ from app.db.deps import get_engine, get_session
 from app.db.session import session_factory
 from app.parse import paths as p
 from app.parse.state import (
+    EXPORTED,
     READY_TO_RENDER,
     RENDERED,
     RENDERING,
@@ -42,6 +43,7 @@ from app.schemas.render import (
     ConfirmRenderPlanIn,
     ConfirmRenderPlanOut,
     ConsistencyIssueOut,
+    ExportStatusOut,
     PlaceholderInfoOut,
     RenderPlanItemOut,
     RenderPlanOut,
@@ -492,4 +494,190 @@ def render_download(
         file_iter(),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{chapter}.docx"'},
+    )
+
+
+# ---------- 10. PDF 导出（Task 20） ----------
+
+_export_jobs: dict[str, threading.Event] = {}
+_export_lock = threading.Lock()
+
+
+def _export_job_key(enterprise_id: str, project_id: str) -> str:
+    return f"export:{enterprise_id}:{project_id}"
+
+
+def _export_cancel_event(enterprise_id: str, project_id: str) -> threading.Event:
+    key = _export_job_key(enterprise_id, project_id)
+    with _export_lock:
+        evt = _export_jobs.get(key)
+        if evt is None:
+            evt = threading.Event()
+            _export_jobs[key] = evt
+        return evt
+
+
+def _clear_export_job(enterprise_id: str, project_id: str) -> None:
+    key = _export_job_key(enterprise_id, project_id)
+    with _export_lock:
+        _export_jobs.pop(key, None)
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/render/export",
+)
+async def render_export(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> StreamingResponse:
+    """启动 PDF 导出（转 PDF + 合并），以 SSE 推送进度事件。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+
+    project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
+    if project.parse_status != RENDERED:
+        raise HTTPException(
+            status_code=409,
+            detail=f"当前状态 {project.parse_status}，仅 RENDERED 可导出",
+        )
+
+    queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    def emit(event: dict[str, object]) -> None:
+        try:
+            queue.put_nowait(event)
+        except asyncio.QueueFull:
+            pass
+
+    cancel_evt = _export_cancel_event(enterprise_id, project_id)
+
+    def _export_worker() -> None:
+        try:
+            emit({"type": "progress", "stage": "started"})
+            result = render_service.export_pdf(
+                enterprise_id, project_id, cancel_event=cancel_evt, emit=emit
+            )
+            if cancel_evt.is_set():
+                emit({"type": "progress", "stage": "cancelled"})
+            elif result.get("success"):
+                emit(
+                    {
+                        "type": "progress",
+                        "stage": "completed",
+                        "merged_path": result.get("merged_path", ""),
+                        "total_chapters": result.get("total_chapters", 0),
+                    }
+                )
+            else:
+                emit(
+                    {
+                        "type": "error",
+                        "message": result.get("error", "导出失败"),
+                    }
+                )
+        except Exception as exc:
+            emit({"type": "error", "message": str(exc)[:500]})
+        finally:
+            _clear_export_job(enterprise_id, project_id)
+
+    import threading as _td  # noqa: PLC0415
+
+    worker = _td.Thread(target=_export_worker, daemon=True)
+    worker.start()
+
+    async def generate() -> AsyncIterator[bytes]:
+        while True:
+            event = await queue.get()
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n".encode()
+            if event.get("type") in ("completed", "cancelled", "error"):
+                break
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+    )
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/render/export/cancel",
+)
+def render_export_cancel(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> dict[str, object]:
+    """发送导出取消信号。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    evt = _export_cancel_event(enterprise_id, project_id)
+    evt.set()
+    return {"cancelled": True}
+
+
+@router.get(
+    "/enterprises/{enterprise_id}/projects/{project_id}/render/export/status",
+    response_model=ExportStatusOut,
+)
+def render_export_status(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> ExportStatusOut:
+    """查询导出状态。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+
+    project = ProjectRepository(session, Scope(enterprise_id=enterprise_id)).get(project_id)
+
+    # 检查是否有活跃的导出任务（通过事件是否已 set 判断）
+    key = _export_job_key(enterprise_id, project_id)
+    with _export_lock:
+        evt = _export_jobs.get(key)
+        is_exporting = evt is not None and not evt.is_set()
+
+    # 检查合并 PDF 是否已存在
+    merged_path = p.pdf_dir(enterprise_id, project_id) / "标书.pdf"
+    has_merged = merged_path.exists()
+
+    if project.parse_status == EXPORTED or has_merged:
+        export_status = "completed"
+    elif is_exporting:
+        export_status = "exporting"
+    else:
+        export_status = "idle"
+
+    return ExportStatusOut(
+        export_status=export_status,
+        merged_path=str(merged_path) if has_merged else None,
+        total_chapters=0,
+        current_chapter=None,
+        error_msg=None,
+    )
+
+
+@router.get(
+    "/enterprises/{enterprise_id}/projects/{project_id}/render/export/pdf",
+)
+def render_export_pdf_download(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> StreamingResponse:
+    """下载合并后的完整 PDF。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+
+    merged_path = p.pdf_dir(enterprise_id, project_id) / "标书.pdf"
+    if not merged_path.exists():
+        raise HTTPException(status_code=404, detail="合并 PDF 不存在")
+
+    def file_iter() -> Any:
+        with merged_path.open("rb") as f:
+            while True:
+                chunk = f.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+
+    return StreamingResponse(
+        file_iter(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="标书.pdf"'},
     )
