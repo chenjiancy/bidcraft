@@ -35,6 +35,13 @@ from app.repositories.parse_config import ParseConfigRepository
 from app.repositories.project import ProjectRepository
 from app.schemas.parse import (
     EngineStatusOut,
+    FormatListAddNameIn,
+    FormatListAddPathIn,
+    FormatListConfirmIn,
+    FormatListConfirmOut,
+    FormatListItemOut,
+    FormatListItemUpdateIn,
+    FormatListOut,
     ParseChecklistOut,
     ParseConfigItemOut,
     ParseConfigOut,
@@ -363,5 +370,193 @@ def parse_confirm(
             note=body.note,
         )
         return ParseConfirmOut(**result)
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+# ---------- Task 14：商务标格式清单确认 ----------
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/review",
+)
+def format_list_enter_review(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> dict[str, object]:
+    """进入格式清单确认（PARSE_CONFIRMED → FORMAT_REVIEW）。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        return service.enter_format_review(session_factory(get_engine()), enterprise_id, project_id)
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.get(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/list",
+    response_model=FormatListOut,
+)
+def format_list_get(
+    enterprise_id: str,
+    project_id: str,
+    session: SessionDep,
+) -> FormatListOut:
+    """获取商务标格式清单全量数据。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    try:
+        result = service.get_format_list(session_factory(get_engine()), enterprise_id, project_id)
+        items = [
+            FormatListItemOut(
+                key=it["key"],
+                seq=it["seq"],
+                title=it["title"],
+                file=it["file"],
+                is_external=it["is_external"],
+                source_stem=it["source_stem"],
+                status=it["status"],
+                missing_reason=it.get("missing_reason"),
+                added_file=it.get("added_file"),
+            )
+            for it in result["items"]
+        ]
+        return FormatListOut(
+            parse_status=result["parse_status"],
+            items=items,
+            confirmed_at=result.get("confirmed_at"),
+            total=result["total"],
+            confirmed_count=result["confirmed_count"],
+            missing_count=result["missing_count"],
+            external_count=result["external_count"],
+        )
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/add_path",
+)
+def format_list_add_path(
+    enterprise_id: str,
+    project_id: str,
+    body: FormatListAddPathIn,
+    session: SessionDep,
+) -> dict[str, object]:
+    """新增清单条目：用户给本机文件路径，校验后复制入 parse/docx/。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        return service._add_format_item_path(
+            session_factory(get_engine()),
+            enterprise_id,
+            project_id,
+            body.file_path,
+            body.title,
+        )
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/add_name",
+)
+def format_list_add_name(
+    enterprise_id: str,
+    project_id: str,
+    body: FormatListAddNameIn,
+    session: SessionDep,
+) -> dict[str, object]:
+    """新增清单条目：用户只提供名称，软件在解析产物/原招标文件中查找。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        return service._add_format_item_name(
+            session_factory(get_engine()),
+            enterprise_id,
+            project_id,
+            body.name,
+        )
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/remove",
+)
+def format_list_remove(
+    enterprise_id: str,
+    project_id: str,
+    item_key: str,
+    session: SessionDep,
+) -> dict[str, object]:
+    """删除清单条目（仅移出制作范围，parsed/ 文件保留）。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        return service._remove_format_item(
+            session_factory(get_engine()),
+            enterprise_id,
+            project_id,
+            item_key,
+        )
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/update",
+)
+def format_list_update(
+    enterprise_id: str,
+    project_id: str,
+    body: FormatListItemUpdateIn,
+    item_key: str,
+    session: SessionDep,
+) -> dict[str, object]:
+    """编辑清单条目（名称或更换对应文件，仅限条目层面）。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        return service._update_format_item(
+            session_factory(get_engine()),
+            enterprise_id,
+            project_id,
+            item_key,
+            body.title,
+            body.file,
+        )
+    except ParseError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from None
+
+
+@router.post(
+    "/enterprises/{enterprise_id}/projects/{project_id}/parse/format/confirm",
+    response_model=FormatListConfirmOut,
+)
+def format_list_confirm(
+    enterprise_id: str,
+    project_id: str,
+    body: FormatListConfirmIn,
+    session: SessionDep,
+) -> FormatListConfirmOut:
+    """逐条确认格式清单 → FORMAT_CONFIRMED。"""
+    _get_project_or_404(session, enterprise_id, project_id)
+    if job_manager.is_running(enterprise_id, project_id):
+        raise HTTPException(status_code=409, detail="该项目解析任务正在运行")
+    try:
+        result = service.confirm_format_list(
+            session_factory(get_engine()),
+            enterprise_id,
+            project_id,
+            [i for i in body.items],
+            note=body.note,
+        )
+        return FormatListConfirmOut(**result)
     except ParseError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from None

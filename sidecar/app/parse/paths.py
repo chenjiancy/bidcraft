@@ -26,6 +26,7 @@ _RAW = "raw"
 _CHECKPOINTS = "checkpoints"
 _DOCX = "docx"
 _CONFIRMED = "confirmed"
+_LISTS = "lists"
 
 
 class PathEscapeError(Exception):
@@ -85,6 +86,21 @@ def confirmed_dir(enterprise_id: str, project_id: str) -> Path:
 def checklist_path(enterprise_id: str, project_id: str) -> Path:
     """Task 13：parse_checklist.json 路径。"""
     return confirmed_dir(enterprise_id, project_id) / "parse_checklist.json"
+
+
+def lists_dir(enterprise_id: str, project_id: str) -> Path:
+    """Task 14：商务标格式清单目录（format_checklist.json 等）。"""
+    return project_dir(enterprise_id, project_id) / _LISTS
+
+
+def format_list_path(enterprise_id: str, project_id: str) -> Path:
+    """Task 14：商务标格式清单 JSON 路径。"""
+    return lists_dir(enterprise_id, project_id) / "format_checklist.json"
+
+
+def format_list_checkpoint_path(enterprise_id: str, project_id: str) -> Path:
+    """Task 14：格式清单确认 checkpoint JSON 路径。"""
+    return checkpoints_dir(enterprise_id, project_id) / "format_list.json"
 
 
 def ensure_within_project(base: Path, target: Path) -> Path:

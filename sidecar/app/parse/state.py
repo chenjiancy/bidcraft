@@ -8,6 +8,8 @@
 Task 11 扩展：``PARSED → SCORE_PARSED``（评分办法解析独立阶段留痕）。
 Task 13 扩展：``SCORE_PARSED → PARSE_REVIEW → PARSE_CONFIRMED``
 （人工确认清单后解锁业务模块；上游重解析/重试使确认作废，回退 SCORE_PARSED）。
+Task 14 扩展：``PARSE_CONFIRMED → FORMAT_REVIEW → FORMAT_CONFIRMED → MATERIAL_LOOP``
+（商务标格式清单逐条确认后解锁素材提取；上游重解析使确认作废，回退 PARSE_CONFIRMED）。
 """
 
 from __future__ import annotations
@@ -22,6 +24,9 @@ ParseStatus = Literal[
     "SCORE_PARSED",
     "PARSE_REVIEW",
     "PARSE_CONFIRMED",
+    "FORMAT_REVIEW",
+    "FORMAT_CONFIRMED",
+    "MATERIAL_LOOP",
 ]
 
 INIT: ParseStatus = "INIT"
@@ -31,6 +36,9 @@ PARSED: ParseStatus = "PARSED"
 SCORE_PARSED: ParseStatus = "SCORE_PARSED"
 PARSE_REVIEW: ParseStatus = "PARSE_REVIEW"
 PARSE_CONFIRMED: ParseStatus = "PARSE_CONFIRMED"
+FORMAT_REVIEW: ParseStatus = "FORMAT_REVIEW"
+FORMAT_CONFIRMED: ParseStatus = "FORMAT_CONFIRMED"
+MATERIAL_LOOP: ParseStatus = "MATERIAL_LOOP"
 
 # 合法转换表（key=当前状态，value=可转入的状态集合）
 _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
@@ -47,8 +55,14 @@ _TRANSITIONS: dict[ParseStatus, frozenset[ParseStatus]] = {
     SCORE_PARSED: frozenset({PARSED, UPLOADED, PARSING, SCORE_PARSED, PARSE_REVIEW}),
     # Task 13：PARSE_REVIEW → PARSE_CONFIRMED（全部确认）；→ SCORE_PARSED（上游重试回退）
     PARSE_REVIEW: frozenset({SCORE_PARSED, PARSE_CONFIRMED}),
-    # Task 13：PARSE_CONFIRMED 后允许重解析（回退使确认失效）
-    PARSE_CONFIRMED: frozenset({SCORE_PARSED, PARSED, UPLOADED, PARSING}),
+    # Task 13/14：PARSE_CONFIRMED 后允许重解析（回退使确认失效）；Task 14：→ FORMAT_REVIEW
+    PARSE_CONFIRMED: frozenset({SCORE_PARSED, PARSED, UPLOADED, PARSING, FORMAT_REVIEW}),
+    # Task 14：FORMAT_REVIEW → FORMAT_CONFIRMED（格式清单全部确认）；→ PARSE_CONFIRMED（回退）
+    FORMAT_REVIEW: frozenset({FORMAT_CONFIRMED, PARSE_CONFIRMED}),
+    # Task 14：FORMAT_CONFIRMED → MATERIAL_LOOP（进入素材提取循环）；→ PARSE_CONFIRMED（回退）
+    FORMAT_CONFIRMED: frozenset({MATERIAL_LOOP, PARSE_CONFIRMED}),
+    # Task 16：MATERIAL_LOOP → FORMAT_CONFIRMED（素材补充后回格式清单重确认）
+    MATERIAL_LOOP: frozenset({FORMAT_CONFIRMED}),
 }
 
 

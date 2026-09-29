@@ -214,6 +214,116 @@ export interface ParseConfirmResult {
   confirmed_items: number
 }
 
+export interface FormatListItem {
+  key: string
+  seq: number
+  title: string
+  file: string
+  is_external: boolean
+  source_stem: string
+  status: 'confirmed' | 'missing' | 'added' | 'removed'
+  missing_reason: string | null
+  added_file: string | null
+}
+
+export interface FormatListData {
+  parse_status: string
+  items: FormatListItem[]
+  confirmed_at: string | null
+  total: number
+  confirmed_count: number
+  missing_count: number
+  external_count: number
+}
+
+// ---------- Task 14：商务标格式清单确认 ----------
+
+export function enterFormatReview(
+  enterpriseId: string,
+  projectId: string,
+): Promise<{ parse_status: string; review_started_at: string }> {
+  return window.bid.sidecar.call(
+    projectRoute(enterpriseId, projectId, 'format/review'),
+    {},
+  ) as Promise<{
+    parse_status: string
+    review_started_at: string
+  }>
+}
+
+export function getFormatList(enterpriseId: string, projectId: string): Promise<FormatListData> {
+  return window.bid.sidecar.call(
+    projectRoute(enterpriseId, projectId, 'format/list'),
+  ) as Promise<FormatListData>
+}
+
+export function addFormatItemPath(
+  enterpriseId: string,
+  projectId: string,
+  filePath: string,
+  title: string | null,
+): Promise<{ key: string; file: string }> {
+  return window.bid.sidecar.call(projectRoute(enterpriseId, projectId, 'format/add_path'), {
+    file_path: filePath,
+    title,
+  }) as Promise<{ key: string; file: string }>
+}
+
+export function addFormatItemName(
+  enterpriseId: string,
+  projectId: string,
+  name: string,
+): Promise<{ key: string; status: string }> {
+  return window.bid.sidecar.call(projectRoute(enterpriseId, projectId, 'format/add_name'), {
+    name,
+  }) as Promise<{ key: string; status: string }>
+}
+
+export function removeFormatItem(
+  enterpriseId: string,
+  projectId: string,
+  itemKey: string,
+): Promise<{ removed: string }> {
+  return window.bid.sidecar.call(
+    `${projectRoute(enterpriseId, projectId, 'format/remove')}?item_key=${encodeURIComponent(itemKey)}`,
+  ) as Promise<{ removed: string }>
+}
+
+export function updateFormatItem(
+  enterpriseId: string,
+  projectId: string,
+  itemKey: string,
+  title: string | null,
+  file: string | null,
+): Promise<{ updated: string }> {
+  return window.bid.sidecar.call(
+    `${projectRoute(enterpriseId, projectId, 'format/update')}?item_key=${encodeURIComponent(itemKey)}`,
+    { title, file },
+  ) as Promise<{ updated: string }>
+}
+
+export function confirmFormatList(
+  enterpriseId: string,
+  projectId: string,
+  items: Array<{ key: string; confirmed: boolean }>,
+  note?: string | null,
+): Promise<{
+  parse_status: string
+  confirmed_at: string
+  total_items: number
+  confirmed_items: number
+}> {
+  return window.bid.sidecar.call(projectRoute(enterpriseId, projectId, 'format/confirm'), {
+    items,
+    note: note ?? null,
+  }) as Promise<{
+    parse_status: string
+    confirmed_at: string
+    total_items: number
+    confirmed_items: number
+  }>
+}
+
 // ---------- Task 9：解析配置 ----------
 
 export interface ParseConfigItem {

@@ -1,6 +1,6 @@
 # AI标书制作 - 实施任务清单（tasks.md）
 
-> 状态：Phase 1.0 已完成（Task 1-7，PR #13/#15/#17/#19/#22/#24/#26）；Phase 1.1 进行中（Task 8 已完成 PR #31、Task 9 已完成 PR #33；Task 10-13 待"开始编码"指令）；Phase 1.2 全部 Task 已落盘（Task 14-21，待补 AC、待"开始编码"指令）。
+> 状态：Phase 1.0 已完成（Task 1-7，PR #13/#15/#17/#22/#24/#26）；Phase 1.1 已完成（Task 8 PR #31、Task 9 PR #33、Task 10 PR #34、Task 11 PR #35、Task 12 PR #36、Task 13 PR #37）；Phase 1.2 Task 14 已完成（PR #38），Task 15-21 待"开始编码"指令。
 > 执行纪律：逐项完成 → 立即报告 → 用户确认 → 提交 → 再进入下一项；未经确认不跨项。
 > 编码冻结：须收到用户明确"开始编码"指令后方可执行 Task 1。
 > 任务类型的测试要求（TR）仅可为 `rule` 或 `rubric`。
@@ -329,7 +329,7 @@
 - Task 21: 回收站完整功能（细化版见下）
 
 ## Task 14: 商务标格式清单确认（增删改、新增项识别、地址链接）
-- **Status**: pending
+- **Status**: completed ✅ (PR #38)
 - **Priority**: high
 - **Depends On**: Task 13
 - **Description**:

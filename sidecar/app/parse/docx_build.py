@@ -28,6 +28,16 @@ _BODY_FONT = "仿宋"
 # 章标题归一化匹配关键词
 _FORMAT_KEYWORD = "投标文件格式"
 _COVER_TITLE = "封面"
+# EXTERNAL 标记关键词：系统生成/报价类章节，展示但标注"系统外/不制作"，不参与后续素材/模板/渲染
+_EXTERNAL_KEYWORDS = (
+    "开标一览表",
+    "投标报价",
+    "分项报价表",
+    "报价表",
+    "报价函",
+    "投标函附录",
+    "法定代表人授权书",  # 部分招标文件视作系统模板，按外部处理
+)
 
 
 @dataclass
@@ -48,6 +58,11 @@ class SectionPlan:
     @property
     def filename(self) -> str:
         return f"{self.seq:02d}_{paths.safe_filename(self.title)}.docx"
+
+    @property
+    def is_external(self) -> bool:
+        """是否为系统生成/报价类章节（不参与后续素材/模板/渲染环节）。"""
+        return any(kw in self.title for kw in _EXTERNAL_KEYWORDS)
 
 
 @dataclass
@@ -404,6 +419,7 @@ def assemble_manifest(source_plans: list[SourcePlan], generated_at: str) -> dict
                         "title": s.title,
                         "kind": s.kind,
                         "checkpoint_key": s.checkpoint_key,
+                        "is_external": s.is_external,
                     }
                     for s in p.sections
                 ],
