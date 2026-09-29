@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BidCraft 开发学习总结</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg2: #161b22;
+      --bg3: #21262d;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text2: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+      --purple: #bc8cff;
+      --cyan: #39d4c8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 40px 24px;
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+
+    /* Header */
+    .hero {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 32px;
+      margin-bottom: 48px;
+    }
+    .hero h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .hero .subtitle {
+      color: var(--text2);
+      font-size: 1rem;
+      margin-bottom: 16px;
+    }
+    .hero .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+    }
+    .badge-green { background: rgba(63,185,80,0.15); color: var(--green); border-color: rgba(63,185,80,0.3); }
+    .badge-blue { background: rgba(88,166,255,0.15); color: var(--accent); border-color: rgba(88,166,255,0.3); }
+    .badge-orange { background: rgba(210,153,34,0.15); color: var(--orange); border-color: rgba(210,153,34,0.3); }
+    .badge-purple { background: rgba(188,140,255,0.15); color: var(--purple); border-color: rgba(188,140,255,0.3); }
+
+    /* Section */
+    section { margin-bottom: 56px; }
+    h2 {
+      font-size: 1.4rem;
+      color: #fff;
+      border-left: 3px solid var(--accent);
+      padding-left: 14px;
+      margin-bottom: 24px;
+    }
+    h3 {
+      font-size: 1.1rem;
+      color: var(--cyan);
+      margin: 24px 0 12px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+    .card p { color: var(--text2); font-size: 0.92rem; }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.9rem;
+    }
+    th {
+      text-align: left;
+      background: var(--bg3);
+      color: var(--accent);
+      font-weight: 600;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+    }
+    td {
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:hover td { background: rgba(88,166,255,0.04); }
+
+    /* Code */
+    code {
+      background: var(--bg3);
+      color: var(--cyan);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    pre {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    pre code {
+      background: none;
+      color: var(--text);
+      padding: 0;
+      font-size: 0.84rem;
+    }
+
+    /* List */
+    ul, ol { padding-left: 22px; margin: 10px 0; }
+    li { margin-bottom: 6px; color: var(--text); font-size: 0.93rem; }
+
+    /* Alert boxes */
+    .alert {
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 0.9rem;
+    }
+    .alert-green { background: rgba(63,185,80,0.1); border: 1px solid rgba(63,185,80,0.3); color: var(--green); }
+    .alert-orange { background: rgba(210,153,34,0.1); border: 1px solid rgba(210,153,34,0.3); color: var(--orange); }
+    .alert-red { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--red); }
+    .alert-blue { background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.3); color: var(--accent); }
+
+    /* Progress bar */
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 6px 0;
+    }
+    .progress-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--bg3);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+    .progress-label { font-size: 0.82rem; color: var(--text2); width: 120px; flex-shrink: 0; }
+    .progress-pct { font-size: 0.82rem; color: var(--accent); width: 36px; text-align: right; flex-shrink: 0; }
+
+    /* Divider */
+    hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    /* Footer */
+    .footer {
+      color: var(--text2);
+      font-size: 0.82rem;
+      text-align: center;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Tag */
+    .tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .tag-critical { background: rgba(248,81,73,0.2); color: var(--red); }
+    .tag-major { background: rgba(210,153,34,0.2); color: var(--orange); }
+    .tag-info { background: rgba(88,166,255,0.2); color: var(--accent); }
+    .tag-done { background: rgba(63,185,80,0.2); color: var(--green); }
+    .tag-wip { background: rgba(188,140,255,0.2); color: var(--purple); }
+
+    /* Timeline */
+    .timeline { position: relative; padding-left: 28px; }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-item { position: relative; margin-bottom: 20px; }
+    .timeline-item::before {
+      content: '';
+      position: absolute;
+      left: -24px;
+      top: 6px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid var(--bg);
+    }
+    .timeline-item.done::before { background: var(--green); }
+    .timeline-item.wip::before { background: var(--orange); }
+    .timeline-date { font-size: 0.8rem; color: var(--text2); margin-bottom: 4px; }
+    .timeline-title { font-weight: 600; color: #fff; font-size: 0.95rem; }
+    .timeline-desc { font-size: 0.85rem; color: var(--text2); margin-top: 4px; }
+
+    /* TOC */
+    .toc {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 28px;
+      margin-bottom: 40px;
+    }
+    .toc h3 {
+      margin-top: 0;
+      color: var(--accent);
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .toc ul { list-style: none; padding: 0; }
+    .toc li { margin-bottom: 6px; }
+    .toc a {
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .toc a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="container">
+
+<!-- ===== HERO ===== -->
+<div class="hero">
+  <h1>BidCraft AI 标书制作</h1>
+  <p class="subtitle">从需求到 Phase 1.2 完成的全量学习总结 · 2026-09-30</p>
+  <div class="badges">
+    <span class="badge badge-green">✅ Task 1–21 全部完成</span>
+    <span class="badge badge-blue">✅ 9 Critical + 11 Major 已修复</span>
+    <span class="badge badge-orange">⚠️ 真实样本走查待启动</span>
+    <span class="badge badge-purple">📦 可本地发布</span>
+  </div>
+</div>
+
+<!-- ===== TOC ===== -->
+<div class="toc">
+  <h3>文档目录</h3>
+  <ul>
+    <li><a href="#s1">一、项目背景与核心目标</a></li>
+    <li><a href="#s2">二、学习方法论：从需求到代码的完整链路</a></li>
+    <li><a href="#s3">三、技术栈与核心原理</a></li>
+    <li><a href="#s4">四、MVP 验证：Phase 1.0 做了什么</a></li>
+    <li><a href="#s5">五、Phase 1.1 / 1.2 完整功能清单</a></li>
+    <li><a href="#s6">六、CI / CD 现状</a></li>
+    <li><a href="#s7">七、如何发布与本地部署</a></li>
+    <li><a href="#s8">八、过程中的关键教训</a></li>
+    <li><a href="#s9">九、如何复现本次开发流程</a></li>
+  </ul>
+</div>
+
+<!-- ===== 一、项目背景 ===== -->
+<section id="s1">
+<h2>一、项目背景与核心目标</h2>
+
+<div class="card">
+  <div class="card-title">项目定位</div>
+  <p>个人项目：AI 驱动的监理标书辅助制作工具。当前主要聚焦于<strong>商务标</strong>制作（招标文件解析 → 商务标生成 → 标书检查），技术标属第二期。</p>
+</div>
+
+<div class="card">
+  <div class="card-title">核心底线：不废标</div>
+  <p>所有设计围绕三条原则展开：<strong>不静默报错</strong>、<strong>人工兜底确认</strong>、<strong>状态机显式管理</strong>。任何异常都必须暴露，不允许程序自己"默默处理"掉。</p>
+</div>
+
+<h3>业务场景</h3>
+<table>
+  <thead>
+    <tr><th>步骤</th><th>业务操作</th><th>程序能力</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>上传招标文件（Word/PDF/扫描件）</td><td>MinerU OCR → 结构化解析 → 解析清单</td></tr>
+    <tr><td>2</td><td>人工确认解析结果</td><td>PARSE_CONFIRMED 门禁，阻断未确认进入下一步</td></tr>
+    <tr><td>3</td><td>从素材库提取投标信息</td><td>FTS5 BM25 检索 + 多轮循环收敛</td></tr>
+    <tr><td>4</td><td>匹配模板，生成投标文件</td><td>docxtpl 渲染 + 规则库检查，不调用 LLM</td></tr>
+    <tr><td>5</td><td>导出 PDF 标书</td><td>PyMuPDF 合并 + 书签</td></tr>
+  </tbody>
+</table>
+
+<h3>参考项目</h3>
+<p style="color:var(--text2);font-size:0.9rem">GitHub <a href="https://github.com/FB208/OpenBidKit_Yibiao" style="color:var(--accent)">OpenBidKit_Yibiao（易标）</a>。本项目在其基础上增强：商务标自动制作、企业—项目两级数据隔离、人工兜底状态机。</p>
+</section>
+
+<!-- ===== 二、学习方法论 ===== -->
+<section id="s2">
+<h2>二、学习方法论：从需求到代码的完整链路</h2>
+
+<p>本项目的开发过程严格遵循了一套<strong>规则驱动</strong>的方法论，核心是<strong>先落盘再编码</strong>。以下是从需求到代码的完整链路：</p>
+
+<h3>2.1 需求阶段：spec.md 驱动</h3>
+<div class="alert alert-blue">
+  <strong>原则：</strong>所有需求必须写进 spec.md，未经落盘的需求视为未确认，不予实现。
+</div>
+<ul>
+  <li><code>spec.md</code> 是单一事实来源（Single Source of Truth），包含：目标、功能需求（FR）、非功能需求（NFR）、约束、假设、验收标准（AC）。</li>
+  <li>每个需求都标注了<strong>优先级</strong>（P0/P1/P2）和<strong>所属阶段</strong>（Phase 1.0 / 1.1 / 1.2）。</li>
+  <li>需求变更走<strong>变更协议</strong>：记录变更 → 评估影响 → 用户确认 → 同步更新 spec.md → 记入 CHANGELOG-spec.md → 恢复编码。</li>
+</ul>
+
+<h3>2.2 规划阶段：checklist.md + tasks.md 双轨</h3>
+<table>
+  <thead>
+    <tr><th>文档</th><th>作用</th><th>使用者</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>checklist.md</code></td><td>每个阶段的检查项，完成即勾选；是"能不能进入下一阶段"的硬门禁</td><td>用户 + AI 共同维护</td></tr>
+    <tr><td><code>tasks.md</code></td><td>具体的编码任务，每个 Task 对应一个 PR，完成度明确（待开始 / 编码中 / 已完成）</td><td>AI 执行，用户审查</td></tr>
+  </tbody>
+</table>
+
+<h3>2.3 编码阶段：PR 门禁</h3>
+<div class="timeline">
+  <div class="timeline-item done">
+    <div class="timeline-date">Step 1</div>
+    <div class="timeline-title">本地全绿</div>
+    <div class="timeline-desc">pytest + vitest + ruff + mypy + eslint + tsc + prettier，全部通过才能推送</div>
+  </div>
+  <div class="timeline-item done">
+    <div class="timeline-date">Step 2</div>
+    <div class="timeline-title">创建 PR</div>
+    <div class="timeline-desc">PR 描述中引用 spec.md 中的 AC 条目，说明覆盖了哪些验收标准</div>
+  </div>
+  <div class="timeline-item done">
+    <div class="timeline-date">Step 3</div>
+    <div class="timeline-title">CI 自动检查</div>
+    <div class="timeline-desc">GitHub Actions 跑 Lint → Unit → Integration → E2E → Golden Sample 五层测试</div>
+  </div>
+  <div class="timeline-item done">
+    <div class="timeline-date">Step 4</div>
+    <div class="timeline-title">用户审查合并</div>
+    <div class="timeline-desc">用户 review PR，确认 AC 覆盖后再合并到 main</div>
+  </div>
+</div>
+
+<h3>2.4 代码审查：8 方向并行专项</h3>
+<p>在发现 9 Critical + 20 Major 缺陷时，采用了 <strong>8 个并行子代理</strong>同时进行代码审查，每个代理专注一个方向：</p>
+<table>
+  <thead>
+    <tr><th>方向</th><th>审查重点</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>数据安全与隔离</td><td>企业/项目 ID 是否在所有查询中统一注入过滤</td></tr>
+    <tr><td>状态机与持久化</td><td>状态转换是否完整，异常时状态是否可恢复</td></tr>
+    <tr><td>路径与文件安全</td><td>路径穿越防护，文件写入原子性</td></tr>
+    <tr><td>外部依赖正确性</td><td>包依赖是否声明，API 版本兼容性</td></tr>
+    <tr><td>错误处理</td><td>是否静默吞异常，错误信息是否足够定位</td></tr>
+    <tr><td>前端类型安全</td><td>TypeScript 类型覆盖，zustand store 一致性</td></tr>
+    <tr><td>性能与并发</td><td>异步操作是否正确，资源释放是否完整</td></tr>
+    <tr><td>测试覆盖</td><td>核心链路是否有对应的集成测试</td></tr>
+  </tbody>
+</table>
+
+<h3>2.5 缺陷修复：按业务后果排序，逐条推进</h3>
+<div class="alert alert-green">
+  <strong>方法论：</strong>将 9 Critical + 20 Major 按<strong>业务后果从重到轻</strong>排序 → 逐条修复 → 报告改动 → <strong>停下等用户确认</strong> → commit → 下一条。绝不自行决定修复顺序，绝不批量处理多条后一起汇报。
+</div>
+</section>
+
+<!-- ===== 三、技术栈与原理 ===== -->
+<section id="s3">
+<h2>三、技术栈与核心原理</h2>
+
+<h3>3.1 整体架构</h3>
+<pre><code>┌─────────────────────────────────────────────┐
+│  Electron (前端进程)                          │
+│  React 18 + Ant Design + Zustand            │
+│  - UI 渲染、用户交互、路由                    │
+│  - IPC 调用 sidecar                         │
+│  - SSE 接收进度流                            │
+└──────────────┬──────────────────────────────┘
+               │ IPC (sidecar:call / sidecar:stream)
+               ▼
+┌─────────────────────────────────────────────┐
+│  Sidecar (Python FastAPI，子进程)             │
+│  - 数据持久化：SQLite + SQLAlchemy ORM       │
+│  - 文档解析：MinerU（OCR + 结构化提取）       │
+│  - 文档渲染：docxtpl（模板填充）              │
+│  - PDF 处理：PyMuPDF（合并 + 书签）           │
+│  - 搜索索引：FTS5（SQLite 全文搜索）          │
+│  - 异步调度：APScheduler（定时清理）          │
+└─────────────────────────────────────────────┘</code></pre>
+
+<h3>3.2 各技术选型与原理</h3>
+<table>
+  <thead>
+    <tr><th>技术</th><th>选型理由</th><th>核心原理</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Electron</strong></td>
+      <td>跨平台桌面应用，内置 Chromium，可访问系统 API（文件对话框、路径）</td>
+      <td>主进程（Node.js）负责系统交互，渲染进程（React）负责 UI；两者通过 IPC 通信</td>
+    </tr>
+    <tr>
+      <td><strong>React 18 + TypeScript</strong></td>
+      <td>组件化 UI，类型安全；用户熟悉且维护成本低</td>
+      <td>Zustand 管理全局状态（当前企业/项目），react-router-dom 管理路由</td>
+    </tr>
+    <tr>
+      <td><strong>FastAPI</strong></td>
+      <td>Python 最快 Web 框架，原生 async/await，自带 OpenAPI 文档</td>
+      <td>Sidecar 以 HTTP Server 运行（本地 127.0.0.1），Electron 通过 IPC 转发请求</td>
+    </tr>
+    <tr>
+      <td><strong>SQLite</strong></td>
+      <td>零配置单机数据库，单文件存储，适合个人工具</td>
+      <td>每个企业有独立数据库文件（<code>enterprises/{id}/bidcraft.db</code>），天然隔离；Alembic 做迁移</td>
+    </tr>
+    <tr>
+      <td><strong>MinerU</strong></td>
+      <td>开源 OCR + 文档解析引擎，支持 PDF/Word/扫描件，输出结构化 Markdown</td>
+      <td>独立 .venv-mineru（torch/paddle 很大，与主 venv 隔离）；仅本机开发使用，不进 CI</td>
+    </tr>
+    <tr>
+      <td><strong>docxtpl</strong></td>
+      <td>基于 Jinja2 模板引擎的 Word 生成库，保留模板格式</td>
+      <td>模板是 .docx 文件，内含变量占位符（{{ var }}）；渲染时填充数据，生成新 docx</td>
+    </tr>
+    <tr>
+      <td><strong>PyMuPDF (fitz)</strong></td>
+      <td>高性能 PDF 处理库，支持合并、书签、压缩</td>
+      <td>docxtpl 生成 .docx → LibreOffice 转 PDF → PyMuPDF 合并多章节 PDF + 添加书签</td>
+    </tr>
+    <tr>
+      <td><strong>FTS5（SQLite 扩展）</strong></td>
+      <td>SQLite 内置全文搜索引擎，无需额外依赖</td>
+      <td>素材 OCR 文本写入 FTS5 索引；提取时做 BM25 排序检索；异步增量更新</td>
+    </tr>
+    <tr>
+      <td><strong>DPAPI（Windows 凭据管理器）</strong></td>
+      <td>Windows 原生加密，API Key 不存明文</td>
+      <td>使用 cryptography 库的 Fernet + DPAPI 加密存储模型密钥</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>3.3 核心设计模式</h3>
+<div class="card">
+  <div class="card-title">模式 1：企业—项目两级数据隔离</div>
+  <p>所有数据库查询必须携带 <code>enterprise_id</code> 和 <code>project_id</code> 过滤条件，仓储层统一注入，不得绕过。这是地基级约束，违反即灾难性数据泄漏。</p>
+</div>
+<div class="card">
+  <div class="card-title">模式 2：状态机显式管理</div>
+  <p>标书制作的每一步（上传 → 解析 → 确认 → 提取 → 匹配 → 渲染 → 导出）均由状态机管理。状态转换全程留痕（audit log）。非法转换被拒绝，不静默。</p>
+</div>
+<div class="card">
+  <div class="card-title">模式 3：原子写入</div>
+  <p>所有文件生成操作：先写 <code>.tmp</code> 临时文件 → 完成后 rename → 替换正式文件。异常中断不产生半截损坏文件。</p>
+</div>
+<div class="card">
+  <div class="card-title">模式 4：侧车（Sidecar）进程隔离</div>
+  <p>Python 服务作为 Electron 的子进程运行（不独立监听网络），通过 IPC 通信。好处：（1）端口无冲突；（2）Electron 退出时 sidecar 自动终止；（3）随机端口 + 本地令牌鉴权。</p>
+</div>
+</section>
+
+<!-- ===== 四、MVP 验证 ===== -->
+<section id="s4">
+<h2>四、MVP 验证：Phase 1.0 做了什么</h2>
+
+<div class="alert alert-green">
+  <strong>MVP 已实现。</strong>Phase 1.0（Task 1–7）的核心目标——"以 1 家企业 + 1 个项目 + 真实样本 + 云端模型打通最小链路"——在 Task 7 完成时已达成。
+</div>
+
+<h3>4.1 MVP 定义（来自 spec.md）</h3>
+<pre><code>Phase 1.0（垂直骨架先行，walking skeleton）：
+不先把各模块分别做全，先以
+  "1 家企业 + 1 个项目 + 和县真实采购文件 + 1 个云端模型"
+端到端打通最小链路，再横向补全功能。</code></pre>
+
+<h3>4.2 Task 1–7 各任务的作用</h3>
+<table>
+  <thead>
+    <tr><th>Task</th><th>解决的核心问题</th><th>MVP 中的角色</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1 开发环境骨架</td><td>怎么让项目跑起来 + CI 自动跑测试</td><td>地基：没有这个，后续全部无法验证</td></tr>
+    <tr><td>2 应用外壳导航</td><td>用户怎么看界面、怎么切换页面</td><td>入口：没有这个，用户无法使用</td></tr>
+    <tr><td>3 Sidecar 进程管理</td><td>Python 服务怎么和 Electron 通信</td><td>桥梁：没有这个，前后端无法连接</td></tr>
+    <tr><td>4 数据层</td><td>企业/项目数据怎么存、怎么隔离</td><td>地基：没有这个，数据无持久化</td></tr>
+    <tr><td>5 企业/项目 CRUD</td><td>用户能不能创建企业和项目</td><td>核心业务流程起点</td></tr>
+    <tr><td>6 模型配置连通性</td><td>AI 模型能不能被调用</td><td>AI 能力验证</td></tr>
+    <tr><td>7 Walking Skeleton</td><td>端到端跑通：上传 → 解析 → 门禁 → 进入项目</td><td>MVP 验收：整条链路能走通</td></tr>
+  </tbody>
+</table>
+
+<h3>4.3 MVP 验收标准（AC-1 ~ AC-7）</h3>
+<ul>
+  <li>AC-1：能创建企业，能创建项目，数据持久化，重启后不丢失</li>
+  <li>AC-2：能上传 .doc/.docx/.pdf 招标文件，解析成功（MinerU 文本提取）</li>
+  <li>AC-3：解析结果以清单形式展示，能人工确认</li>
+  <li>AC-4：确认后可进入项目主页，看到解析结果 Tab</li>
+  <li>AC-5：明暗主题切换正常</li>
+  <li>AC-6：CI 全绿（lint + unit + integration）</li>
+  <li>AC-7：本机真实样本能跑通完整链路</li>
+</ul>
+
+<p style="color:var(--green);margin-top:12px">✅ 以上 7 项在 Task 7 完成时均已满足。</p>
+</section>
+
+<!-- ===== 五、Phase 1.1 / 1.2 功能清单 ===== -->
+<section id="s5">
+<h2>五、Phase 1.1 / 1.2 完整功能清单</h2>
+
+<h3>5.1 Phase 1.1 — 解析能力（Task 8–13）</h3>
+<table>
+  <thead>
+    <tr><th>Task</th><th>功能</th><th>核心产出</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>8 文本/OCR 解析</td><td>MinerU 提取文本 + 章节切分 + .doc 转 .docx</td><td><code>parse_result.json</code> + 结构化 Markdown</td></tr>
+    <tr><td>9 解析配置</td><td>18 项可配置（术语表、LLM 开关、解析深度）</td><td>项目级配置文件，PARSED 后变更需提示</td></tr>
+    <tr><td>10 规则粗分 + LLM 校验</td><td>规则提取投标方信息 + LLM 语义校验</td><td>粗分清单 + 幻觉拦截 + 全文审计日志</td></tr>
+    <tr><td>11 评分办法解析</td><td>提取评分表 → score_table.json</td><td>schema 硬校验，校验失败阻断状态升级</td></tr>
+    <tr><td>12 投标文件格式章节化</td><td>docxtpl 生成章节结构 docx</td><td>符合招标格式要求的章节化 docx 文件</td></tr>
+    <tr><td>13 解析清单 UI + 门禁</td><td>PARSE_CONFIRMED 状态机</td><td>三条 Tab（粗分/评分/格式）+ 红蓝标 + 解锁按钮</td></tr>
+  </tbody>
+</table>
+
+<h3>5.2 Phase 1.2 — 商务标生成（Task 14–21）</h3>
+<table>
+  <thead>
+    <tr><th>Task</th><th>功能</th><th>核心产出</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>14 商务标格式清单确认</td><td>FORMAT_CONFIRMED 门禁</td><td>格式确认后锁定，不可随意变更</td></tr>
+    <tr><td>15 素材库管理</td><td>上传 → OCR → 命名 → 归档 → FTS5 索引</td><td>素材表 + FTS5 索引表 + 动态词典</td></tr>
+    <tr><td>16 素材提取清单</td><td>BM25 检索 + 多轮循环收敛</td><td>候选素材列表（按 BM25 分数排序）</td></tr>
+    <tr><td>17 模板库管理</td><td>上传模板 + 合规检查 + 版本管理</td><td>模板版本表 + 合规检查报告</td></tr>
+    <tr><td>18 模板匹配与语义比对</td><td>TemplateCompare 关联表 + 差异确认</td><td>匹配报告 + 差异清单</td></tr>
+    <tr><td>19 docxtpl 逐章渲染</td><td>A/B 类占位 + 警告清单 + 跨页检测</td><td>生成完成的标书 docx</td></tr>
+    <tr><td>20 转 PDF + PDF 合并</td><td>LibreOffice 转 PDF + PyMuPDF 合并 + 书签</td><td>最终 PDF 标书文件</td></tr>
+    <tr><td>21 两级回收站</td><td>系统级 + 企业级回收站 + 定时清理</td><td>回收站 UI + purge_at 定时任务</td></tr>
+  </tbody>
+</table>
+
+<h3>5.3 代码审查缺陷修复（2026-09-30）</h3>
+<p>全面代码审查识别出 <strong>9 Critical + 20 Major</strong>，逐条修复后全部提交到 main：</p>
+<table>
+  <thead>
+    <tr><th>级别</th><th>数量</th><th>最高优先级问题</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Critical</td><td>9</td><td>归档删源文件（C2）、score_table 校验失效（C4）、路由白名单不含下划线（C1）</td></tr>
+    <tr><td>Major</td><td>11</td><td>purge 不删业务行（M1）、FTS5 索引无人调用（M2）、素材分页 total 错误（M5）</td></tr>
+    <tr><td>其余 Major</td><td>9</td><td>经核查不成立或已有实现</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ===== 六、CI/CD ===== -->
+<section id="s6">
+<h2>六、CI / CD 现状</h2>
+
+<h3>6.1 CI（持续集成）—— ✅ 完整</h3>
+<p><code>.github/workflows/ci.yml</code> 定义了五层流水线，按触发事件分层执行：</p>
+<table>
+  <thead>
+    <tr><th>Job</th><th>内容</th><th>触发条件</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Lint & Type Check</td><td>ruff + mypy + eslint + tsc + prettier</td><td>所有 push / PR</td></tr>
+    <tr><td>Unit Tests</td><td>vitest（前端）+ pytest tests/unit（后端）</td><td>所有 push / PR</td></tr>
+    <tr><td>Integration Tests</td><td>pytest tests/integration</td><td>所有 push / PR</td></tr>
+    <tr><td>E2E Smoke</td><td>Playwright 端到端冒烟测试</td><td>PR / main / v* tag</td></tr>
+    <tr><td>Golden Sample Regression</td><td>pytest tests/golden（真实样本回归）</td><td>PR / main / v* tag</td></tr>
+  </tbody>
+</table>
+
+<div class="alert alert-green">
+  当前 CI 状态：<strong>全绿</strong>。275 个 pytest 测试 + 40 个 vitest 测试全部通过，lint/typecheck 零警告。
+</div>
+
+<h3>6.2 CD（持续部署）—— ⚠️ 部分就绪</h3>
+<table>
+  <thead>
+    <tr><th>维度</th><th>状态</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>构建能力</td><td>✅ 已配置</td><td><code>electron-builder</code> 已配置 NSIS 安装包，<code>npm run dist</code> 可生成 .exe</td></tr>
+    <tr><td>发布渠道</td><td>✅ 已配置</td><td><code>electron-builder.yml</code> 中 publish.provider 设为 GitHub，owner/repo 已填</td></tr>
+    <tr><td>自动发布 workflow</td><td>⏳ 未实现</td><td>打 <code>v*</code> tag 后自动触发构建 + 上传 GitHub Releases 的 workflow 尚未编写</td></tr>
+    <tr><td>自动更新</td><td>✅ 已配置</td><td><code>electron-updater</code> 已引入，运行时会自动检测新版本</td></tr>
+  </tbody>
+</table>
+
+<div class="alert alert-orange">
+  <strong>结论：</strong>CI 完整可用；CD 的构建和发布渠道已配置，但<strong>自动发布 workflow（tag → 构建 → Release）</strong>尚未编写，属于 Phase 2 待办。
+</div>
+</section>
+
+<!-- ===== 七、发布与部署 ===== -->
+<section id="s7">
+<h2>七、如何发布与本地部署</h2>
+
+<h3>7.1 本地开发运行</h3>
+<pre><code># 1. 安装 Node.js 依赖
+npm install
+
+# 2. 安装 Python 依赖（sidecar 目录下）
+cd sidecar && uv sync
+
+# 3. 运行（同时启动 Electron + sidecar）
+npm run dev
+
+# 4. 访问应用
+# Electron 窗口会自动打开，前端运行在 http://localhost:5173
+# sidecar 健康检查：curl http://127.0.0.1:{随机端口}/health</code></pre>
+
+<h3>7.2 构建安装包（本地发布）</h3>
+<pre><code># 构建 Windows NSIS 安装包
+npm run dist
+
+# 输出位置：release/
+# - BidCraft Setup 0.1.0.exe   （NSIS 安装程序）
+# - files/                     （解压版）</code></pre>
+
+<h3>7.3 分发方式</h3>
+<table>
+  <thead>
+    <tr><th>方式</th><th>适用场景</th><th>操作步骤</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>GitHub Releases</td><td>对外发布（配置自动发布 workflow 后）</td><td>git tag v0.1.0 → git push --tags → CI 自动构建 → 上传 Release</td></tr>
+    <tr><td>直接发送 .exe</td><td>个人分发/测试</td><td>本地 <code>npm run dist</code> → 发送 <code>release/BidCraft Setup 0.1.0.exe</code></td></tr>
+    <tr><td>GitHub Actions 手动触发</td><td>临时构建</td><td>GitHub 仓库 → Actions → "Build & Release" workflow → Run workflow</td></tr>
+  </tbody>
+</table>
+
+<h3>7.4 目标机器安装</h3>
+<pre><code># Windows 目标机器（无需安装任何运行时）
+# 直接运行 BidCraft Setup 0.1.0.exe 即可
+# 安装位置：%APPDATA%/BidCraftApp/（数据目录）
+# 卸载时数据不会自动删除（deleteAppDataOnUninstall: false）</code></pre>
+
+<h3>7.5 环境变量说明</h3>
+<table>
+  <thead>
+    <tr><th>变量</th><th>用途</th><th>默认值</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>BIDCRAFT_DATA_ROOT</code></td><td>数据库文件根目录</td><td><code>%APPDATA%/BidCraft-dev/</code>（dev）<br><code>%APPDATA%/BidCraftApp/</code>（prod）</td></tr>
+    <tr><td><code>ELECTRON_RENDERER_URL</code></td><td>开发模式前端地址</td><td>由 electron-vite 自动注入</td></tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ===== 八、关键教训 ===== -->
+<section id="s8">
+<h2>八、过程中的关键教训</h2>
+
+<h3>8.1 最严重的 3 个坑</h3>
+
+<div class="card" style="border-left: 3px solid var(--red)">
+  <div class="card-title">🔴 坑 1：PyMuPDF 漏声明依赖 → CI 红</div>
+  <p><strong>现象：</strong>本地 280 个测试全绿，CI 上 6 个 PDF 测试失败。排查半天才发现是 pyproject.toml 没声明 pymupdf 依赖，CI runner 严格按 pyproject.toml 安装，装不上。</p>
+  <p><strong>根因：</strong>本机已经手动 <code>pip install pymupdf</code>，所以本地能用；CI 环境没有这个隐式依赖。</p>
+  <p><strong>沉淀为规则 12：</strong><code>pyproject.toml 必须显式声明所有 import 的包；本机全绿 ≠ CI 全绿。</code></p>
+</div>
+
+<div class="card" style="border-left: 3px solid var(--red)">
+  <div class="card-title">🔴 坑 2：归档成功后 unlink 用户源文件</div>
+  <p><strong>现象：</strong>用户上传素材后，素材库归档成功，但用户原始文件被删除（<code>original_path.unlink()</code>）。</p>
+  <p><strong>根因：</strong>代码注释写的是"清理收件箱"，但实际删除的是用户上传的原始文件，而非收件箱副本。用户没有任何恢复途径。</p>
+  <p><strong>沉淀为规则 7（已有）：</strong><code>素材库/模板库是基座，有任何不妥当必须实时披露，不得静默。</code></p>
+</div>
+
+<div class="card" style="border-left: 3px solid var(--orange)">
+  <div class="card-title">🟠 坑 3：electron 路由白名单正则不含下划线</div>
+  <p><strong>现象：</strong>多个真实窗口（materials/from_path、templates/from_path、parse/format/add_path）全部"非法路由"报错，不可用。</p>
+  <p><strong>根因：</strong>路由白名单正则 <code>/^\/api\/v1\/[a-z0-9]+(?:\/[a-z0-9]+)*$/</code> 不含下划线字符 <code>_</code>，而真实路由大量使用下划线。</p>
+  <p><strong>教训：</strong>安全限制必须与实际业务路径对齐，否则会把正常功能也拦截掉。</p>
+</div>
+
+<h3>8.2 架构层面的关键决策</h3>
+<table>
+  <thead>
+    <tr><th>决策</th><th>当时为什么这样选</th><th>后续影响</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>SQLite 而非 PostgreSQL</td><td>个人使用，零配置，单文件数据库便于备份和分发</td><td>FTS5 搜索能力受限（需 SQLite ≥ 3.38），但满足当前规模</td></tr>
+    <tr><td>Sidecar 作为子进程而非独立服务</td><td>避免端口冲突，避免用户需要单独启动 Python 服务</td><td>Electron 退出时 sidecar 自动终止，简化了生命周期管理</td></tr>
+    <tr><td>MinerU 独立 venv</td><td>torch/paddle 数 GB，与主 venv 隔离，避免依赖冲突</td><td>不进 CI，本机开发专属，体积较大但干净</td></tr>
+    <tr><td>真实样本存 samples-local/（gitignored）</td><td>投标文件含敏感信息，不推送到公开仓库</td><td>CI 上 golden sample 测试无法跑（samples/ 目录为空），属于已知预存问题</td></tr>
+    <tr><td>docxtpl 而非纯代码生成 Word</td><td>模板是用户提供的，保留排版；纯代码生成难以匹配用户模板格式</td><td>需要用户维护 .docx 模板文件，但有格式保障</td></tr>
+  </tbody>
+</table>
+
+<h3>8.3 已沉淀为项目规则的经验</h3>
+<ul>
+  <li><strong>规则 12（依赖完整性）</strong>：pyproject.toml 显式声明，禁止依赖本机隐式安装</li>
+  <li><strong>规则 13（异常不静默）</strong>：禁止 <code>except: pass</code> / <code>except: return False</code>，必须记录日志或暴露错误详情</li>
+  <li><strong>规则 14（缺陷修复流程）</strong>：按业务后果排序 → 逐条修复 → 报告 → 等确认 → 独立 commit → 下一条</li>
+</ul>
+</section>
+
+<!-- ===== 九、复现指南 ===== -->
+<section id="s9">
+<h2>九、如何复现本次开发流程</h2>
+
+<h3>9.1 环境准备</h3>
+<pre><code># 必需软件
+Node.js 22+        # 前端 + Electron
+uv                 # Python 包管理（比 pip 快，支持 pyproject.toml）
+Git                # 版本控制
+GitHub 账号        # PR + CI
+
+# 可选（仅本机开发）
+LibreOffice        # .doc 转 .docx（测试用，CI runner 未安装）
+MinerU（独立 venv）# OCR 解析（仅本机开发）</code></pre>
+
+<h3>9.2 新项目初始化（复刻 Task 1–4 的流程）</h3>
+<pre><code># 1. 创建项目结构
+mkdir bidcraft && cd bidcraft
+npm init -y
+npx electron-vite@latest init
+
+# 2. 配置 CI（复制本项目 .github/workflows/ci.yml）
+# 3. 配置 pre-commit hooks（husky + lint-staged）
+# 4. sidecar 初始化
+mkdir sidecar && cd sidecar
+uv init
+uv add fastapi sqlalchemy alembic uvicorn python-docx docxtpl pypdf
+uv sync
+
+# 5. 创建 base spec.md（按本项目 .trae/specs/ai-bid-making/spec.md 模板）</code></pre>
+
+<h3>9.3 每个 Task 的标准交付物</h3>
+<table>
+  <thead>
+    <tr><th>交付物</th><th>说明</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>代码实现</td><td>侧车（Python）+ 前端（React）代码，遵循已有架构</td></tr>
+    <tr><td>单元测试</td><td>对应功能的最小测试用例，覆盖正常路径 + 关键异常路径</td></tr>
+    <tr><td>集成测试</td><td>端到端验证（FastAPI TestClient 或 React Testing Library）</td></tr>
+    <tr><td>PR 描述</td><td>引用 spec.md 中的 AC 条目，说明覆盖范围</td></tr>
+    <tr><td>文档更新</td><td>tasks.md / checklist.md 状态同步更新</td></tr>
+  </tbody>
+</table>
+
+<h3>9.4 代码审查 checklist（复刻 8 方向专项）</h3>
+<pre><code>□ 数据安全：所有查询是否携带 enterprise_id / project_id？
+□ 状态机：所有状态转换是否在 state.py 的 ensure_transition 中定义？
+□ 异常处理：有没有 except: pass 或 except: return False？
+□ 路径安全：有没有路径穿越风险（../ 未过滤）？
+□ 原子写入：文件生成是否先写 .tmp 再 rename？
+□ 依赖完整性：pyproject.toml 是否声明了所有 import 的包？
+□ 类型安全：TypeScript / mypy 是否零警告？
+□ 测试覆盖：核心链路是否有集成测试？</code></pre>
+
+<h3>9.5 发布步骤（完整版）</h3>
+<pre><code># 1. 本地构建
+npm run dist
+
+# 2. 本地安装测试
+# 运行 release/BidCraft Setup 0.1.0.exe，验证基本功能
+
+# 3. 打版本 tag
+git tag v0.1.0
+git push origin v0.1.0
+
+# 4. （待 CD workflow 实现后）自动触发 Release 构建
+# 当前需手动上传到 GitHub Releases</code></pre>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<div class="footer">
+  <p>BidCraft AI 标书制作 · 开发学习总结</p>
+  <p>生成时间：2026-09-30 · 基于 Task 1–21 + 9 Critical + 11 Major 缺陷修复全量审查</p>
+  <p style="margin-top:8px;color:var(--text2)">本文件随项目代码一起归档，可作为后续迭代的参考基线。</p>
+</div>
+
+</div>
+</body>
+</html>
