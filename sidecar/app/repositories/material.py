@@ -63,6 +63,22 @@ class MaterialRepository:
     def list_all(self) -> Sequence[Material]:
         return self._session.execute(self._filter()).scalars().all()
 
+    def count(
+        self,
+        *,
+        category: str | None = None,
+        keyword: str | None = None,
+    ) -> int:
+        """统计满足条件的素材总数（M5 修复：用于分页 total）。"""
+        from sqlalchemy import func
+
+        query = self._filter().with_only_columns(func.count())
+        if category and category in VALID_CATEGORIES:
+            query = query.where(Material.category == category)
+        if keyword:
+            query = query.where(Material.name.contains(keyword))
+        return self._session.execute(query).scalar_one()
+
     def create(
         self,
         *,

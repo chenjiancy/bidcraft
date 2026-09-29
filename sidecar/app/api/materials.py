@@ -62,7 +62,8 @@ def list_materials(
 ) -> MaterialListOut:
     repo = MaterialRepository(session, Scope(enterprise_id=enterprise_id))
     items = repo.list(category=category, keyword=keyword, page=page, page_size=page_size)
-    return MaterialListOut(items=[_material_out(m) for m in items], total=len(items))
+    total = repo.count(category=category, keyword=keyword)
+    return MaterialListOut(items=[_material_out(m) for m in items], total=total)
 
 
 @router.get("/enterprises/{enterprise_id}/materials/{material_id}", response_model=MaterialOut)
@@ -266,7 +267,8 @@ def list_project_materials(
 ) -> MaterialListOut:
     repo = MaterialRepository(session, Scope(enterprise_id=enterprise_id, project_id=project_id))
     items = repo.list(category=category, keyword=keyword, page=page, page_size=page_size)
-    return MaterialListOut(items=[_material_out(m) for m in items], total=len(items))
+    total = repo.count(category=category, keyword=keyword)
+    return MaterialListOut(items=[_material_out(m) for m in items], total=total)
 
 
 @router.get(
