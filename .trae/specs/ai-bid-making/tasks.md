@@ -406,7 +406,7 @@
   - 必检项（手写签名）阶段二实现。
 
 ## Task 16: 素材提取清单（查询匹配、多轮循环收敛）
-- **Status**: pending
+- **Status**: completed ✅ (PR #40)
 - **Priority**: high
 - **Depends On**: Task 15
 - **Description**:

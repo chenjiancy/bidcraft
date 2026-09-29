@@ -50,6 +50,8 @@
   - 披露：编辑条目简化为"移除+重新添加"（未直接调用 update API）；未做真实样本窗口验证（fake MinerU + 单测覆盖）
 - [x] Task 15：素材库管理（TR-15.1～15.15；material 表迁移 + naming/OCR/imaging/dictionary/fts5/service 模块 + /materials API；前端素材库页 + /materials 路由；pytest 194 passed + vitest 32 passed；PR #39）
   - 披露：未做真实样本窗口验证（StubOcr + 单测覆盖命名模块）；转图片依赖 PyMuPDF/LibreOffice（本机未装时走 RuntimeError）；LLM 辅助默认关闭；IPC 路径直传接口 for_path 替代 multipart 上传
+- [x] Task 16：素材提取清单（TR-16.1～16.12 全部满足，PR #40；状态机 MATERIAL_LOOP→MATERIAL_CONFIRMED；material_extract_item 模型 + 迁移 a3c9f1e5d8b2；extract_service 两源聚合/证件组聚合/FTS5 多条件查询/轮次留痕/确认保存门禁；FTS5 查询重写（trigram）；/material-extract API（generate/query/save_round/confirm/import_external）；前端提取页 MaterialsExtractPage + /extract 路由；pytest 215 passed + vitest 40 passed）
+  - 披露：修复 Task 14 遗留门禁派生缺陷（setParseStatus 改状态集合判定，避免状态推进后业务模块被重新锁定）；/bid 路由放宽为仅需 PARSE_CONFIRMED（格式清单复核在页内完成）；B 类（确实没有）走收件箱上传后重查，未做真实样本窗口验证（StubOcr + 单测覆盖）
 - 纪律复核：
   - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14 已遵守）
   - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13、14 已遵守）
