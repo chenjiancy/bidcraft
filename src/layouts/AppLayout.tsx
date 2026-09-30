@@ -4,6 +4,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BOTTOM_NAV_ITEMS, getNavItems } from './nav-config'
 import { useAppStore } from '../stores/useAppStore'
 import ThemeToggle from '../components/ThemeToggle'
+import UpdateBanner from '../components/UpdateBanner'
 
 export default function AppLayout() {
   const location = useLocation()
@@ -97,7 +98,11 @@ export default function AppLayout() {
             <ThemeToggle />
           </div>
         </Layout.Header>
-        <Layout.Content className="bc-content" style={{ flex: 1, minWidth: 0 }}>
+        <Layout.Content
+          className="bc-content"
+          style={{ flex: 1, minWidth: 0, position: 'relative' }}
+        >
+          <UpdateBanner />
           <Outlet />
         </Layout.Content>
       </Layout>
