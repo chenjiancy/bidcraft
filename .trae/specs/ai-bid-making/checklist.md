@@ -1,6 +1,6 @@
 # AI标书制作 - 检查清单（checklist.md）
 
-> 状态：2026-09-28 更新。已完成项打勾，实施阶段对应 Task 1-8 逐项验收。
+> 状态：2026-09-30 更新。已完成项打勾，实施阶段对应 Task 1-22 逐项验收。
 
 ## 需求阶段检查
 - [x] 项目简介、目的、目标用户已确认
@@ -100,6 +100,8 @@
 - [x] CI 分层触发矩阵已实现（分支跑单元+集成，PR 跑全部含E2E+黄金样本；PR #13 实证）
 - [x] dev/prod userData 目录隔离已实现（BidCraft-dev / BidCraftApp，互不污染）
 - [x] 本机全部测试为绿（规则 9）（22 前端 + 43 后端 = 65 passed）
+- [x] Task 22：三层递进导航 + workspace两步引导 + 项目首页模块卡片 + access统一管理（TR-22.1～22.5，commit 01c31f4；pytest 279 passed + vitest 74 passed）
+  - 披露：合并时有 4 文件冲突（AppLayout/nav-config/WorkspacePage/ProjectHomePage），均已解决；未做真实样本窗口验证
 
 ## 发布前检查
 - [ ] CI/CD 流水线通过（本机全绿后推送触发）
