@@ -32,13 +32,20 @@ export function requireSidecarHandle(): SidecarHandle {
   return handle
 }
 
-async function waitForHealth(port: number): Promise<void> {
+async function waitForHealth(
+  port: number,
+  spawnErrRef: { current: unknown | null },
+): Promise<void> {
   const deadline = Date.now() + HEALTH_TIMEOUT_MS
   let lastError: unknown = null
 
   while (Date.now() < deadline) {
     if (status !== 'starting') {
       throw new Error('sidecar 启动期间状态异常终止')
+    }
+    // spawn 失败时立即退出，避免空等 HEALTH_TIMEOUT_MS
+    if (spawnErrRef.current) {
+      throw new Error(`sidecar 启动失败：${String(spawnErrRef.current)}`)
     }
     try {
       const resp = await fetch(`http://127.0.0.1:${port}/health`)
@@ -94,16 +101,23 @@ export async function startSidecar(
     child = spawn(exe, ['--data-root', dataRoot], { env })
   }
 
+  const spawnErrRef: { current: unknown | null } = { current: null }
+
   child.stdout?.on('data', (d: Buffer) => console.log(`[sidecar] ${String(d).trimEnd()}`))
   child.stderr?.on('data', (d: Buffer) => console.warn(`[sidecar] ${String(d).trimEnd()}`))
-  child.on('error', (err) => console.error('[sidecar] 进程错误：', err))
+  // spawn 失败（如 uvicorn.exe 路径无效）时 emit 'error' 但不触发 'exit'；
+  // 必须在此标记，否则 waitForHealth 会空等 HEALTH_TIMEOUT_MS 后才超时
+  child.on('error', (err) => {
+    spawnErrRef.current = err
+    console.error('[sidecar] 进程错误：', err)
+  })
   child.on('exit', (code) => {
     console.log(`[sidecar] 退出 code=${code}`)
     // 非主动停止即判定崩溃（NFR：不静默）
     if (!stopping) status = 'crashed'
   })
 
-  await waitForHealth(port).catch(async (err) => {
+  await waitForHealth(port, spawnErrRef).catch(async (err) => {
     // M6 修复：健康检查超时/失败时终止侧车进程，避免僵尸进程
     status = 'crashed'
     const c = child
