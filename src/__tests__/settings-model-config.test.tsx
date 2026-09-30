@@ -25,7 +25,7 @@ describe('模型配置页', () => {
     await user.click(screen.getByRole('menuitem', { name: '配置' }))
 
     // 等待表单加载
-    const modelInput = await screen.findByPlaceholderText('如 gpt-4o / deepseek-chat / qwen-plus')
+    const modelInput = await screen.findByPlaceholderText('选择或输入模型名（如 gpt-4o）')
     await user.type(modelInput, 'gpt-4o')
 
     const saveBtn = screen.getByRole('button', { name: '保存配置' })
@@ -41,7 +41,7 @@ describe('模型配置页', () => {
     await user.click(screen.getByRole('menuitem', { name: '配置' }))
 
     // 等待表单加载
-    await screen.findByPlaceholderText('如 gpt-4o / deepseek-chat / qwen-plus')
+    await screen.findByPlaceholderText('选择或输入模型名（如 gpt-4o）')
 
     // 未确认外联时点击测试连接 → 弹出首次外联提示
     const testBtn = screen.getByRole('button', { name: '测试连接' })

@@ -22,24 +22,33 @@ import {
   getModelConfig,
   getApiKey,
   hasApiKey,
+  listModels,
   setApiKey,
   testConnection,
   updateModelConfig,
 } from '../../api/modelConfig'
-
 const { Title, Text } = Typography
 
-/** 供应商预设（base_url 自动填充，用户可修改） */
-const PROVIDER_PRESETS: Record<string, string> = {
-  openai: 'https://api.openai.com',
-  deepseek: 'https://api.deepseek.com',
-  qwen: 'https://dashscope.aliyuncs.com/compatible-mode',
-  ollama: 'http://localhost:11434',
-  custom: '',
+/**
+ * 供应商预设：
+ * - short：简写形式，用于 urlMode==='short' 时展示在 Base URL 输入框
+ * - url：完整 base_url，始终写入数据库（含 endpoint 路径）
+ */
+const PROVIDER_PRESETS: Record<string, { short: string; url: string }> = {
+  openai: { short: 'openai', url: 'https://api.openai.com' },
+  deepseek: { short: 'deepseek', url: 'https://api.deepseek.com' },
+  qwen: { short: 'qwen', url: 'https://dashscope.aliyuncs.com/compatible-mode' },
+  ollama: { short: 'localhost:11434', url: 'http://localhost:11434' },
+  custom: { short: '自定义', url: '' },
 }
 
 interface ConfigFormValues {
   provider: string
+  /**
+   * 表单字段：仅作为显示载体，实际保存值由 handleSaveConfig 根据 urlMode 解析。
+   * - urlMode==='short'：显示简写（如 deepseek），存库时自动补全为完整 URL
+   * - urlMode==='full'：显示完整 URL（如 https://api.deepseek.com）
+   */
   base_url: string
   model: string
 }
@@ -65,6 +74,17 @@ export default function SettingsPage() {
   const [externalModalOpen, setExternalModalOpen] = useState(false)
   const [pendingTest, setPendingTest] = useState(false)
 
+  /**
+   * 基础 URL 显示模式：
+   * - short：显示供应商简写（如 deepseek），保存时自动补全为完整 URL
+   * - full：显示完整 URL（如 https://api.deepseek.com）
+   */
+  const [urlMode, setUrlMode] = useState<'short' | 'full'>('full')
+  /** 检测到的模型数量（用于提示） */
+  const [detectedModelCount, setDetectedModelCount] = useState<number | null>(null)
+  const [modelDetecting, setModelDetecting] = useState(false)
+  const [modelDetectError, setModelDetectError] = useState<string | null>(null)
+
   /** 加载模型配置 + API Key 状态 + 外联确认状态 */
   async function loadAll() {
     try {
@@ -75,7 +95,7 @@ export default function SettingsPage() {
       ])
       configForm.setFieldsValue({
         provider: config.provider ?? 'openai',
-        base_url: config.base_url ?? PROVIDER_PRESETS.openai,
+        base_url: config.base_url ?? PROVIDER_PRESETS.openai.url,
         model: config.model ?? '',
       })
       setApiKeyExists(keyExists)
@@ -92,10 +112,13 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** 供应商切换时自动填充 base_url */
+  /** 供应商切换时同步更新表单 base_url 和简写展示值 */
   function handleProviderChange(provider: string) {
-    const preset = PROVIDER_PRESETS[provider] ?? ''
-    configForm.setFieldValue('base_url', preset)
+    const preset = PROVIDER_PRESETS[provider]
+    if (preset) {
+      configForm.setFieldValue('base_url', preset.url)
+      if (urlMode === 'short') configForm.setFieldValue('base_url', preset.short)
+    }
   }
 
   /** 保存模型配置（不含 API Key） */
@@ -103,7 +126,17 @@ export default function SettingsPage() {
     try {
       const values = await configForm.validateFields()
       setConfigLoading(true)
-      await updateModelConfig(values)
+      // urlMode='short' 时，将简写映射回完整 URL 后再保存
+      let resolvedBaseUrl: string
+      if (urlMode === 'short') {
+        const preset = Object.values(PROVIDER_PRESETS).find(
+          (p) => (p as { short: string }).short === values.base_url,
+        )
+        resolvedBaseUrl = preset ? (preset as { url: string }).url : values.base_url
+      } else {
+        resolvedBaseUrl = values.base_url
+      }
+      await updateModelConfig({ ...values, base_url: resolvedBaseUrl })
       message.success('模型配置已保存')
     } catch {
       message.error('保存失败')
@@ -177,6 +210,24 @@ export default function SettingsPage() {
     }
   }
 
+  /** 调用当前配置的 provider /v1/models 端点，获取可用模型列表 */
+  async function handleDetectModels() {
+    setModelDetectError(null)
+    setDetectedModelCount(null)
+    setModelDetecting(true)
+    try {
+      const models = await listModels()
+      setDetectedModelCount(models.length)
+      if (models.length === 0) {
+        setModelDetectError('未检测到模型，请检查 Base URL 是否正确')
+      }
+    } catch {
+      setModelDetectError('检测失败，请检查网络连接和 Base URL')
+    } finally {
+      setModelDetecting(false)
+    }
+  }
+
   return (
     <Space direction="vertical" size="middle" className="w-full">
       <Card>
@@ -218,12 +269,56 @@ export default function SettingsPage() {
             />
           </Form.Item>
 
+          {/* Base URL：支持简写/完整两种展示模式 */}
           <Form.Item label="Base URL" name="base_url" rules={[{ required: true }]}>
-            <Input placeholder="https://api.example.com" />
+            <Input.Group compact>
+              <Input
+                placeholder="如 deepseek 或 https://api.deepseek.com"
+                style={{ width: 'calc(100% - 80px)' }}
+              />
+              <Select
+                value={urlMode}
+                onChange={(v) => {
+                  setUrlMode(v)
+                  // 切换模式时同步更新表单显示值
+                  const provider = configForm.getFieldValue('provider') ?? 'openai'
+                  const preset = PROVIDER_PRESETS[provider]
+                  if (preset) {
+                    configForm.setFieldValue('base_url', v === 'short' ? preset.short : preset.url)
+                  }
+                }}
+                style={{ width: 80 }}
+                options={[
+                  { value: 'short', label: '简写' },
+                  { value: 'full', label: '完整' },
+                ]}
+              />
+            </Input.Group>
           </Form.Item>
 
+          {/* 模型名称：支持下拉选择检测到的模型或直接输入 */}
           <Form.Item label="模型名称" name="model" rules={[{ required: true }]}>
-            <Input placeholder="如 gpt-4o / deepseek-chat / qwen-plus" />
+            <Input.Group compact>
+              <Input
+                placeholder="选择或输入模型名（如 gpt-4o）"
+                style={{ width: 'calc(100% - 100px)' }}
+                onChange={(e) => configForm.setFieldValue('model', e.target.value)}
+              />
+              <Button loading={modelDetecting} onClick={handleDetectModels} style={{ width: 100 }}>
+                检测模型
+              </Button>
+            </Input.Group>
+            {/* 检测失败的错误提示 */}
+            {modelDetectError && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {modelDetectError}
+              </Text>
+            )}
+            {detectedModelCount !== null && !modelDetectError && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                已检测到 {detectedModelCount} 个可用模型，可直接输入模型名
+              </Text>
+            )}
           </Form.Item>
 
           <Form.Item>

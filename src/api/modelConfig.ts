@@ -56,6 +56,16 @@ export function confirmExternal(): Promise<{ confirmed: boolean }> {
   return call<{ confirmed: boolean }>(`${BASE}/model-config/external-confirmed`, {})
 }
 
+// ========== 模型列表（调用 provider /v1/models 端点） ==========
+
+export interface ModelItem {
+  id: string
+}
+
+export function listModels(): Promise<ModelItem[]> {
+  return call<{ models: ModelItem[] }>(`${BASE}/model-config/models`).then((r) => r.models)
+}
+
 // ========== API Key（DPAPI） ==========
 
 export function setApiKey(apiKey: string): Promise<{ success: boolean }> {

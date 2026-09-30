@@ -49,3 +49,15 @@ class ExternalConfirmedOut(BaseModel):
     """首次外联确认状态（NFR-3）。"""
 
     confirmed: bool
+
+
+class ModelItem(BaseModel):
+    """单个模型信息。"""
+
+    id: str
+
+
+class ModelListOut(BaseModel):
+    """列出可用模型列表。"""
+
+    models: list[ModelItem]

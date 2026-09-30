@@ -17,6 +17,8 @@ from app.schemas.model_config import (
     ExternalConfirmedOut,
     ModelConfigOut,
     ModelConfigUpdate,
+    ModelItem,
+    ModelListOut,
     TestConnectionRequest,
     TestConnectionResultOut,
 )
@@ -100,3 +102,30 @@ def confirm_external(session: SessionDep) -> ExternalConfirmedOut:
     repo.set_value("system", KEY_EXTERNAL_CONFIRMED, "true")
     session.commit()
     return ExternalConfirmedOut(confirmed=True)
+
+
+@router.get("/model-config/models", response_model=ModelListOut)
+def list_available_models(session: SessionDep) -> ModelListOut:
+    """调用当前配置的 LLM provider API（/v1/models）获取可用模型列表。
+
+    若 provider/base_url 未配置，返回空列表；调用失败时同样返回空列表
+    而非抛出错误，由前端决定是否提示用户。
+    """
+    repo = ConfigKVRepository(session)
+    base_url = repo.get_value("system", KEY_BASE_URL)
+    if not base_url:
+        return ModelListOut(models=[])
+
+    import httpx
+
+    url = f"{base_url.rstrip('/')}/v1/models"
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            data = resp.json()
+        # OpenAI 兼容格式：{"data": [{"id": "...", ...}, ...]}
+        items = data.get("data", [])
+        return ModelListOut(models=[ModelItem(id=m["id"]) for m in items])
+    except Exception:
+        return ModelListOut(models=[])

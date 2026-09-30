@@ -42,16 +42,27 @@ function writeCred(data: CredData): void {
   writeFileSync(credPath(), JSON.stringify(data, null, 2), 'utf-8')
 }
 
+/**
+ * 使用 -EncodedCommand 执行加密脚本，避免 Out-File 的编码问题和临时文件竞争。
+ *
+ * 原来的 Out-File 方案在部分 Windows 环境下会因 UTF-8 BOM、临时目录权限
+ * 或 PowerShell 输出编码导致密文为空，进而让 hasApiKey() 返回 false。
+ * -EncodedCommand 直接返回 Base64 密文到 stdout，不依赖文件系统。
+ */
 async function dpapiEncrypt(plain: string): Promise<string> {
-  const script = `
-$ErrorActionPreference = 'Stop'
-$s = ConvertTo-SecureString -String '${plain.replace(/'/g, "''")}' -AsPlainText -Force
-ConvertFrom-SecureString $s | Out-File -FilePath '$env:TEMP\\dpapi_out.txt' -Encoding utf8 -NoNewline
-`.trim()
-  await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script])
-  const os = await import('node:os')
-  const tmpPath = join(os.tmpdir(), 'dpapi_out.txt')
-  const encrypted = readFileSync(tmpPath, 'utf-8').trim()
+  const escaped = plain.replace(/'/g, "''")
+  const script = `$s = ConvertTo-SecureString -String '${escaped}' -AsPlainText -Force; ConvertFrom-SecureString $s`
+  // ucs2 编码（UTF-16LE）是 PowerShell -EncodedCommand 的固定要求
+  const bytes = Buffer.from(script, 'ucs2')
+  const encoded = bytes.toString('base64')
+  const { stdout } = await execFileAsync('powershell.exe', [
+    '-NoProfile',
+    '-NonInteractive',
+    '-EncodedCommand',
+    encoded,
+  ])
+  const encrypted = stdout.trim()
+  if (!encrypted) throw new Error('DPAPI 加密失败：PowerShell 未返回密文')
   return encrypted
 }
 
