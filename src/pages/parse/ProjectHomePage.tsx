@@ -57,7 +57,7 @@ export default function ProjectHomePage() {
       key: 'parse',
       title: '招标文件解析',
       description: '上传招标文件，解析为结构化清单与评分表',
-      icon: <FileSearchOutlined />,
+      icon: <FileSearchOutlined style={{ fontSize: 32 }} />,
       path: '/parse',
       disabled: false,
       disabledReason: '',
@@ -68,7 +68,7 @@ export default function ProjectHomePage() {
       key: 'bid',
       title: '商务标制作',
       description: '基于解析清单制作商务标书',
-      icon: <FolderOpenOutlined />,
+      icon: <FolderOpenOutlined style={{ fontSize: 32 }} />,
       path: '/bid',
       disabled: !isParseConfirmed,
       disabledReason: '需先完成招标文件解析',
@@ -79,7 +79,7 @@ export default function ProjectHomePage() {
       key: 'extract',
       title: '素材提取',
       description: '提取商务标所需素材并匹配素材库',
-      icon: <FolderOpenOutlined />,
+      icon: <FolderOpenOutlined style={{ fontSize: 32 }} />,
       path: '/extract',
       disabled: !isFormatListConfirmed,
       disabledReason: '需先完成格式清单确认',
@@ -90,7 +90,7 @@ export default function ProjectHomePage() {
       key: 'check',
       title: '标书检查',
       description: '检查标书完整性与合规性',
-      icon: <CheckCircleOutlined />,
+      icon: <CheckCircleOutlined style={{ fontSize: 32 }} />,
       path: '/check',
       disabled: !isFormatListConfirmed,
       disabledReason: '需先完成格式清单确认',
@@ -101,7 +101,7 @@ export default function ProjectHomePage() {
       key: 'template-match',
       title: '模板匹配',
       description: '匹配标书模板并进行语义比对',
-      icon: <SettingOutlined />,
+      icon: <SettingOutlined style={{ fontSize: 32 }} />,
       path: '/template-match',
       disabled: !isMaterialConfirmed,
       disabledReason: '需先完成素材提取清单确认',
@@ -112,7 +112,7 @@ export default function ProjectHomePage() {
       key: 'render',
       title: '逐章渲染',
       description: '按章节渲染最终标书文档',
-      icon: <FileSearchOutlined />,
+      icon: <FileSearchOutlined style={{ fontSize: 32 }} />,
       path: '/render',
       disabled: !isMaterialConfirmed,
       disabledReason: '需先完成素材提取清单确认',
@@ -137,7 +137,7 @@ export default function ProjectHomePage() {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       {/* 项目信息头部 */}
-      <Card className="bc-page-hero">
+      <Card>
         <Space direction="vertical" size="small">
           <Space>
             <Tag color="blue">{currentEnterprise.name}</Tag>
@@ -156,40 +156,39 @@ export default function ProjectHomePage() {
         {modules.map((m) => (
           <Col key={m.key} xs={24} sm={12} lg={8}>
             <Card
-              className={[
-                'bc-module-card',
-                m.disabled ? 'is-locked' : '',
-                !m.disabled && m.status === 'completed' ? 'is-completed' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
               hoverable={!m.disabled}
               onClick={() => !m.disabled && navigate(m.path)}
-              style={{ height: '100%', cursor: m.disabled ? 'not-allowed' : 'pointer' }}
+              style={{
+                height: '100%',
+                opacity: m.disabled ? 0.6 : 1,
+                cursor: m.disabled ? 'not-allowed' : 'pointer',
+              }}
             >
-              <div className="bc-module-head">
-                <span className="bc-module-icon">{m.icon}</span>
-                <div className="bc-module-text">
-                  <Title level={5} style={{ margin: 0 }}>
-                    {m.title}
-                  </Title>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {m.description}
-                  </Text>
-                </div>
-              </div>
-              <div className="bc-module-foot">
-                <Tag color={statusColor(m.status)}>{m.statusText}</Tag>
-                {m.disabled ? (
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    <LockOutlined /> {m.disabledReason}
-                  </Text>
-                ) : (
-                  <Button type="link" size="small" style={{ padding: 0 }}>
-                    进入 →
-                  </Button>
-                )}
-              </div>
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                <Space align="start">
+                  {m.icon}
+                  <div>
+                    <Title level={5} style={{ margin: 0 }}>
+                      {m.title}
+                    </Title>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {m.description}
+                    </Text>
+                  </div>
+                </Space>
+                <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                  <Tag color={statusColor(m.status)}>{m.statusText}</Tag>
+                  {m.disabled ? (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      <LockOutlined /> {m.disabledReason}
+                    </Text>
+                  ) : (
+                    <Button type="link" size="small" style={{ padding: 0 }}>
+                      进入 →
+                    </Button>
+                  )}
+                </Space>
+              </Space>
             </Card>
           </Col>
         ))}
