@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db.base import Base
-from app.db.deps import get_engine, reset_engine
+from app.db.deps import reset_engine
+from app.db.migrate import run_migrations
 from app.main import app
 
 
@@ -23,7 +23,13 @@ def data_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 @pytest.fixture
 def db_client(data_root: Path) -> TestClient:
-    """带建表的 TestClient：每用例隔离数据库（企业/项目 API 测试用）。"""
-    Base.metadata.create_all(get_engine())
+    """带建库的 TestClient：每用例隔离数据库（企业/项目 API 测试用）。
+
+    建库走 Alembic 迁移而非 ``Base.metadata.create_all``：迁移是 sidecar
+    启动时的唯一建库入口（``app.main._startup`` 会调 ``run_migrations``），
+    若测试另行 create_all，startup 再迁移就会撞上
+    ``table enterprise already exists``。迁移本身幂等，重复调用安全。
+    """
+    run_migrations()
     yield TestClient(app)
     reset_engine()

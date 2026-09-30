@@ -31,6 +31,10 @@ export interface BidAPI {
     getVersion: () => Promise<string>
     getUserDataPath: () => Promise<string>
   }
+  win: {
+    getChrome: () => Promise<{ material: 'acrylic' | 'solid'; titlebarHeight: number }>
+    setTitleBarOverlay: (symbolColor: string) => Promise<void>
+  }
   update: {
     checkForUpdates: () => Promise<{ ok: boolean }>
     onStatus: (cb: (payload: UpdateStatusEvent) => void) => () => void

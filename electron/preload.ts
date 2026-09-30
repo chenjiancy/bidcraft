@@ -5,6 +5,14 @@ const api = {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
     getUserDataPath: (): Promise<string> => ipcRenderer.invoke('app:getPath', 'userData'),
   },
+  win: {
+    /** 查询窗口外观能力：是否启用系统磨玻璃材质、标题栏高度 */
+    getChrome: (): Promise<{ material: 'acrylic' | 'solid'; titlebarHeight: number }> =>
+      ipcRenderer.invoke('window:getChrome'),
+    /** 同步原生窗口控件符号色（跟随明暗主题） */
+    setTitleBarOverlay: (symbolColor: string): Promise<void> =>
+      ipcRenderer.invoke('window:setTitleBarOverlay', symbolColor),
+  },
   update: {
     /** 主动触发版本检查，结果通过 onStatus / onDownloadProgress 回调接收 */
     checkForUpdates: (): Promise<{ ok: boolean }> => ipcRenderer.invoke('update:check'),

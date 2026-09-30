@@ -11,7 +11,6 @@
 - 素材恢复后状态为 active（TR-21.12）
 """
 
-import os
 import shutil
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,8 +19,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app.db.base import Base
-from app.db.deps import get_engine, reset_engine
+from app.db.deps import reset_engine
+from app.db.migrate import run_migrations
 from app.models.recycle_bin import RecycleBin
 from app.tasks.recycle_cleanup import _purge_expired
 
@@ -32,15 +31,14 @@ def data_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     if root.exists():
         shutil.rmtree(root)
     root.mkdir(parents=True)
-    os.environ["BIDCRAFT_DATA_ROOT"] = str(root)
+    monkeypatch.setenv("BIDCRAFT_DATA_ROOT", str(root))
+    reset_engine()
     return root
 
 
 @pytest.fixture
 def db_client(data_root: Path) -> Any:
-    reset_engine()
-    engine = get_engine()
-    Base.metadata.create_all(engine)
+    run_migrations()
     from app.main import app
 
     with TestClient(app) as client:
