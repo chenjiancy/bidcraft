@@ -645,3 +645,25 @@
 
 ## 问题（Review 修复项）
 - （暂无，仅在独立评审产生 actionable 发现后，按 Issue I-N 登记）
+
+## Task 22: 三层递进导航与 workspace 两步引导
+- **Status**: completed（2026-09-30 完成）
+- **Priority**: high
+- **Depends On**: Task 21
+- **Description**:
+  将当前扁平路由改为三层递进结构，匹配用户设计意图：
+  - **P0-1 导航动态化**：按 `currentEnterprise`/`currentProject` 动态显示/隐藏导航项；锁定模块加 `disabled` + tooltip 说明解锁条件
+  - **P0-2 workspace 两步引导**：企业选择与项目选择不再并排，改为"选企业→展示项目"两步递进
+  - **P1 项目首页模块卡片**：进入项目后首页展示所有业务模块卡片，解析为第一个高亮入口，其他显示解锁状态
+  - **P1 access 统一管理**：用 `access` 字段统一路由权限与菜单显示逻辑，替代手动维护的 `RequireUnlock`
+- **Test Requirements**:
+  - `rule` TR-22.1: 未选企业时侧边栏仅显示「企业/项目」「配置」两项（截图为证）
+  - `rule` TR-22.2: 选了企业后侧边栏追加「素材库」「模板库」两项（截图为证）
+  - `rule` TR-22.3: 未选项目时「解析」「商务标」等导航项 disabled + tooltip 显示解锁条件（截图为证）
+  - `rule` TR-22.4: workspace 选中企业前不展示项目表格，选中企业后展示项目列表（截图为证）
+  - `rule` TR-22.5: TS 编译 + lint 全绿，原有测试全通过
+- **Notes**:
+  - 仅修改前端代码（src/），不改 sidecar
+  - 保留 RequireUnlock 作为路由兜底，导航层做前置视觉拦截
+  - P0 完成后测试，再推进 P1
+

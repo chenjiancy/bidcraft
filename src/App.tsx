@@ -2,8 +2,9 @@ import { ConfigProvider, theme } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
-import RequireUnlock from './components/RequireUnlock'
+import AccessGuard from './components/AccessGuard'
 import WorkspacePage from './pages/workspace/WorkspacePage'
+import ProjectHomePage from './pages/parse/ProjectHomePage'
 import ParsePage from './pages/parse/ParsePage'
 import BidPage from './pages/bid/BidPage'
 import CheckPage from './pages/check/CheckPage'
@@ -31,18 +32,15 @@ export default function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/materials" element={<MaterialsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          {/* 项目首页：进入项目后的默认页，展示模块卡片与解锁状态 */}
+          <Route path="/project-home" element={<ProjectHomePage />} />
           <Route path="/parse" element={<ParsePage />} />
-          {/* 商务标模块：PARSE_CONFIRMED 即可进入（格式清单复核在页内完成） */}
-          <Route element={<RequireUnlock requireFormatConfirm={false} />}>
+          {/* 统一门禁：AccessGuard 根据 access.ts 规则拦截未解锁模块 */}
+          <Route element={<AccessGuard />}>
             <Route path="/bid" element={<BidPage />} />
-          </Route>
-          {/* 素材提取/标书检查：需格式清单已确认（FORMAT_CONFIRMED） */}
-          <Route element={<RequireUnlock />}>
             <Route path="/extract" element={<MaterialsExtractPage />} />
             <Route path="/check" element={<CheckPage />} />
-            {/* 模板匹配与语义比对：MATERIAL_CONFIRMED 后进入（Task 18） */}
             <Route path="/template-match" element={<TemplateMatchPage />} />
-            {/* 逐章渲染：READY_TO_RENDER 及之后可进入（Task 19） */}
             <Route path="/render" element={<RenderPage />} />
           </Route>
           <Route path="/settings" element={<SettingsPage />} />

@@ -239,7 +239,7 @@ export default function WorkspacePage() {
             type="primary"
             onClick={() => {
               setCurrentProject({ id: record.id, name: record.name, agent: record.agent })
-              navigate('/parse')
+              navigate('/project-home')
             }}
           >
             进入项目
@@ -294,6 +294,7 @@ export default function WorkspacePage() {
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
+      {/* 第一步：选择企业 */}
       <Card
         title={
           <Title level={4} style={{ margin: 0 }}>
@@ -349,6 +350,7 @@ export default function WorkspacePage() {
         />
       </Card>
 
+      {/* 第二步：选择项目（选中企业后才显示） */}
       {currentEnterprise ? (
         <Card
           title={
@@ -386,7 +388,7 @@ export default function WorkspacePage() {
         </Card>
       ) : (
         <Card>
-          <Text type="secondary">请选择或创建一个企业后管理其项目。</Text>
+          <Text type="secondary">请先选择或创建一个企业，然后管理其项目。</Text>
         </Card>
       )}
 
