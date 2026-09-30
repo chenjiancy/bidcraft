@@ -44,6 +44,7 @@ export default function WorkspacePage() {
       const data = await api.listEnterprises()
       setEnterprises(data)
       if (currentEnterprise && !data.find((e) => e.id === currentEnterprise.id)) {
+        // 持久化的企业已不存在（mock 数据/手工清理后残留），静默清除不弹错
         setCurrentEnterprise(null)
       }
     } catch (err) {
@@ -59,6 +60,7 @@ export default function WorkspacePage() {
     }
   }, [])
 
+  /** 启动时验证持久化企业是否仍在数据库中，若已失效则静默清除 */
   useEffect(() => {
     let cancelled = false
     api
@@ -71,7 +73,10 @@ export default function WorkspacePage() {
         }
       })
       .catch((err) => {
-        if (!cancelled) message.error(`加载企业失败: ${err}`)
+        // 数据库为空或尚未初始化：静默处理，不弹错误提示
+        if (!cancelled) {
+          console.warn('[workspace] 启动时加载企业失败（通常为数据为空，忽略）:', err)
+        }
       })
     return () => {
       cancelled = true
