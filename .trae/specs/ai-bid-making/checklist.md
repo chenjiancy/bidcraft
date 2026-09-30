@@ -48,6 +48,7 @@
   - 披露：walking-skeleton 测试语义修正（解析完成不再自动解锁，需 review+confirm）；docx Tab 不做增删留 Phase 1.2；score 人工改分不重算合计（人工兜底）；未做真实样本窗口验证
 - [x] Task 14：商务标格式清单确认（TR-14.1～14.10 全部满足，PR #38；状态机 PARSE_CONFIRMED→FORMAT_REVIEW→FORMAT_CONFIRMED→MATERIAL_LOOP；商务标页面展示 parsed/ 逐章 docx 清单，EXTERNAL 项标注"系统外/不制作"；增（文件路径/名称两种模式）、删（仅标 removed）、改（条目层面）；找不到同名置 MISSING 标红不阻断；确认后 setFormatStatus('FORMAT_CONFIRMED') 刷新门禁；独立 format_list.json checkpoint；vitest 32 passed + pytest 184 passed 全绿）
   - 披露：编辑条目简化为"移除+重新添加"（未直接调用 update API）；未做真实样本窗口验证（fake MinerU + 单测覆盖）
+<<<<<<< HEAD
 - [x] Task 15：素材库管理（TR-15.1～15.15；material 表迁移 + naming/OCR/imaging/dictionary/fts5/service 模块 + /materials API；前端素材库页 + /materials 路由；pytest 194 passed + vitest 32 passed；PR #39）
   - 披露：未做真实样本窗口验证（StubOcr + 单测覆盖命名模块）；转图片依赖 PyMuPDF/LibreOffice（本机未装时走 RuntimeError）；LLM 辅助默认关闭；IPC 路径直传接口 for_path 替代 multipart 上传
 - [x] Task 16：素材提取清单（TR-16.1～16.12 全部满足，PR #40；状态机 MATERIAL_LOOP→MATERIAL_CONFIRMED；material_extract_item 模型 + 迁移 a3c9f1e5d8b2；extract_service 两源聚合/证件组聚合/FTS5 多条件查询/轮次留痕/确认保存门禁；FTS5 查询重写（trigram）；/material-extract API（generate/query/save_round/confirm/import_external）；前端提取页 MaterialsExtractPage + /extract 路由；pytest 215 passed + vitest 40 passed）
@@ -89,6 +90,11 @@
 - 纪律复核：
   - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8~21 已遵守）
   - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8~21 已遵守）
+=======
+- 纪律复核：
+  - [x] 完成即报告、用户确认后提交 PR、CI 全绿用户确认后才合并（Task 8、9、10、11、12、13、14 已遵守）
+  - [x] 测试问题与环境补丁、许可证风险已披露，无静默/杜撰（Task 8、9、10、11、12、13、14 已遵守）
+>>>>>>> origin/feat/task-14-format-checklist
 
 ## 验收阶段检查
 - [x] 阶段 1.0 验收标准（AC）已定义并全部满足（Task 1-7 全部 done，PR #13/#15/#17/#19/#22/#24/#26）

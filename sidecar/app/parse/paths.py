@@ -39,6 +39,7 @@ _CHECKPOINTS = "checkpoints"
 _DOCX = "docx"
 _CONFIRMED = "confirmed"
 _LISTS = "lists"
+<<<<<<< HEAD
 _MATERIALS = "materials"
 _PROJECT_MATERIALS = "project-materials"
 _INBOX = "inbox"
@@ -52,6 +53,8 @@ MATERIAL_CATEGORIES = (
     "honor",
     "finance",
 )
+=======
+>>>>>>> origin/feat/task-14-format-checklist
 
 
 class PathEscapeError(Exception):
@@ -128,6 +131,7 @@ def format_list_checkpoint_path(enterprise_id: str, project_id: str) -> Path:
     return checkpoints_dir(enterprise_id, project_id) / "format_list.json"
 
 
+<<<<<<< HEAD
 # ---------- Task 15：素材库目录布局 ----------
 
 
@@ -301,6 +305,8 @@ def init_templates_dirs(enterprise_id: str) -> list[Path]:
     return [base]
 
 
+=======
+>>>>>>> origin/feat/task-14-format-checklist
 def ensure_within_project(base: Path, target: Path) -> Path:
     """确保 target 解析后位于 base 之内，否则拒绝（防路径穿越）。"""
     base_resolved = base.resolve()

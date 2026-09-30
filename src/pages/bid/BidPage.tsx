@@ -68,6 +68,7 @@ export default function BidPage() {
   const loadList = useCallback(async () => {
     if (!eid || !pid) return
     const data = await getFormatList(eid, pid)
+<<<<<<< HEAD
     const items: FormatListItem[] = Array.isArray(data?.items) ? data.items : []
     setItems(items)
     setTotal(data.total ?? 0)
@@ -78,13 +79,29 @@ export default function BidPage() {
     // 恢复已确认态
     const cs: ItemState = {}
     for (const it of items) {
+=======
+    setItems(data.items)
+    setTotal(data.total)
+    setConfirmedCount(data.confirmed_count)
+    setMissingCount(data.missing_count)
+    setExternalCount(data.external_count)
+    setConfirmedAt(data.confirmed_at ?? null)
+    // 恢复已确认态
+    const cs: ItemState = {}
+    for (const it of data.items) {
+>>>>>>> origin/feat/task-14-format-checklist
       cs[it.key] = it.status === 'confirmed' || it.status === 'added'
     }
     setConfirmState(cs)
   }, [eid, pid])
 
+<<<<<<< HEAD
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
+=======
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+>>>>>>> origin/feat/task-14-format-checklist
     void loadList()
   }, [loadList])
 
@@ -266,7 +283,11 @@ export default function BidPage() {
                 okText="移除"
                 cancelText="取消"
               >
+<<<<<<< HEAD
                 <Button type="link" size="small" danger onClick={() => void handleRemove(it)}>
+=======
+                <Button type="link" size="small" danger disabled={it.status === 'removed'}>
+>>>>>>> origin/feat/task-14-format-checklist
                   移除
                 </Button>
               </Popconfirm>
