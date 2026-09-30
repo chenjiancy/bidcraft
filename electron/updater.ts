@@ -36,4 +36,7 @@ export function initUpdater(win: BrowserWindow): void {
   autoUpdater.on('error', (err: { message: string }) =>
     send('update:status', { status: 'error', message: err.message }),
   )
+
+  // 启动时自动检查更新（静默后台下载，退出时自动安装）
+  autoUpdater.checkForUpdates()
 }
