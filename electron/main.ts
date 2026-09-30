@@ -187,6 +187,9 @@ app.whenReady().then(() => {
     if (name !== 'userData') throw new Error(`未授权的路径: ${name}`)
     return app.getPath('userData')
   })
+  ipcMain.handle('app:quitAndInstall', () => {
+    autoUpdater.quitAndInstall(false, true)
+  })
 
   // 窗口外观：告知渲染层当前是否启用了系统磨玻璃材质（决定是否绘制兜底背景）
   ipcMain.handle('window:getChrome', () => ({

@@ -45,9 +45,9 @@ export default function UpdateBanner({ enabled = true }: UpdateBannerProps) {
     }
   }, [enabled])
 
-  const handleRestart = () => {
-    // electron-updater autoInstallOnAppQuit: true → quit 后自动安装
-    window.location.reload()
+  const handleRestart = async () => {
+    // 调用主进程 quitAndInstall：先关闭应用，重启后 electron-updater 自动安装补丁
+    await window.bid?.app?.quitAndInstall()
   }
 
   if (!show) return null
@@ -77,8 +77,7 @@ export default function UpdateBanner({ enabled = true }: UpdateBannerProps) {
             type="circle"
             size={18}
             percent={percent}
-            showText={false}
-            strokeColor={status === 'available' || status === 'downloaded' ? '#fff' : '#0d9488'}
+            strokeColor="#0d9488"
             trailColor="rgba(255,255,255,0.3)"
           />
         )}

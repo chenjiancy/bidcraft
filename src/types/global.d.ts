@@ -30,6 +30,7 @@ export interface BidAPI {
   app: {
     getVersion: () => Promise<string>
     getUserDataPath: () => Promise<string>
+    quitAndInstall: () => Promise<void>
   }
   win: {
     getChrome: () => Promise<{ material: 'acrylic' | 'solid'; titlebarHeight: number }>

@@ -4,6 +4,7 @@ const api = {
   app: {
     getVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
     getUserDataPath: (): Promise<string> => ipcRenderer.invoke('app:getPath', 'userData'),
+    quitAndInstall: (): Promise<void> => ipcRenderer.invoke('app:quitAndInstall'),
   },
   win: {
     /** 查询窗口外观能力：是否启用系统磨玻璃材质、标题栏高度 */
