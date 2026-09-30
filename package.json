@@ -1,6 +1,6 @@
 {
   "name": "bidcraft",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "AI标书制作",
   "main": "out/main/main.js",
   "author": "chenjiancy",
