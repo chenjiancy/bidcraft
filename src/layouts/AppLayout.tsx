@@ -1,5 +1,5 @@
 import { Layout, Menu, Tag, Tooltip } from 'antd'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BOTTOM_NAV_ITEMS, getNavItems } from './nav-config'
 import { useAppStore } from '../stores/useAppStore'
@@ -15,11 +15,17 @@ export default function AppLayout() {
   const isParseConfirmed = useAppStore((s) => s.isParseConfirmed)
   const isFormatListConfirmed = useAppStore((s) => s.isFormatListConfirmed)
   const isMaterialConfirmed = useAppStore((s) => s.isMaterialConfirmed)
+  const [version, setVersion] = useState<string>('')
 
   // 同步 data-theme 到根节点（驱动 CSS 变量与 Tailwind dark variant）
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode
   }, [themeMode])
+
+  // 获取应用版本号
+  useEffect(() => {
+    void window.bid?.app?.getVersion().then(setVersion)
+  }, [])
 
   const navItems = getNavItems({
     hasEnterprise: !!currentEnterprise,
@@ -85,6 +91,14 @@ export default function AppLayout() {
               label: item.label,
             }))}
           />
+          {version && (
+            <div
+              className="px-5 py-2 text-xs"
+              style={{ color: 'var(--text-3)', borderTop: '1px solid var(--bc-border)' }}
+            >
+              v{version}
+            </div>
+          )}
         </div>
       </Layout.Sider>
 
