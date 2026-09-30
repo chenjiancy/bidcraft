@@ -100,9 +100,9 @@ async function triggerWhenReady() {
 async function getElectronMocks() {
   const electron = await import('electron')
   return {
-    BrowserWindow: electron.BrowserWindow as ReturnType<typeof vi.fn>,
-    app: electron.app as { quit: ReturnType<typeof vi.fn> },
-    dialog: electron.dialog as { showErrorBox: ReturnType<typeof vi.fn> },
+    BrowserWindow: electron.BrowserWindow as unknown as ReturnType<typeof vi.fn>,
+    app: electron.app as unknown as { quit: ReturnType<typeof vi.fn> },
+    dialog: electron.dialog as unknown as { showErrorBox: ReturnType<typeof vi.fn> },
   }
 }
 
