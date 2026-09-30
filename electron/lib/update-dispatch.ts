@@ -9,6 +9,7 @@ export interface UpdateSendFn {
 
 export interface AutoUpdaterEvents {
   on(event: string, listener: (...args: unknown[]) => void): this
+  emit(event: string, ...args: unknown[]): boolean
 }
 
 /**

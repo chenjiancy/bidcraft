@@ -30,9 +30,11 @@ import { UPDATE_CONFIG } from './lib/update-config'
 // 每次测试前清空 autoUpdater 的 mock 调用历史与 EventEmitter 监听
 beforeEach(() => {
   vi.clearAllMocks()
-  ;(autoUpdater as EventEmitter).removeAllListeners()
-  ;(autoUpdater as { checkForUpdates: ReturnType<typeof vi.fn> }).checkForUpdates.mockClear()
-  ;(autoUpdater as { setFeedURL: ReturnType<typeof vi.fn> }).setFeedURL.mockClear()
+  ;(autoUpdater as unknown as EventEmitter).removeAllListeners()
+  ;(
+    autoUpdater as unknown as { checkForUpdates: ReturnType<typeof vi.fn> }
+  ).checkForUpdates.mockClear()
+  ;(autoUpdater as unknown as { setFeedURL: ReturnType<typeof vi.fn> }).setFeedURL.mockClear()
 })
 
 function makeMockWindow() {
@@ -73,11 +75,14 @@ describe('initUpdater', () => {
     const { webContents, sends } = makeMockWindow()
     initUpdater({ webContents } as never)
 
-    ;(autoUpdater as EventEmitter).emit('checking-for-update')
-    ;(autoUpdater as EventEmitter).emit('update-available')
-    ;(autoUpdater as EventEmitter).emit('update-downloaded')
-    ;(autoUpdater as EventEmitter).emit('error', { message: 'test error' })
-    ;(autoUpdater as EventEmitter).emit('download-progress', { percent: 50, bytesPerSecond: 1024 })
+    ;(autoUpdater as unknown as EventEmitter).emit('checking-for-update')
+    ;(autoUpdater as unknown as EventEmitter).emit('update-available')
+    ;(autoUpdater as unknown as EventEmitter).emit('update-downloaded')
+    ;(autoUpdater as unknown as EventEmitter).emit('error', { message: 'test error' })
+    ;(autoUpdater as unknown as EventEmitter).emit('download-progress', {
+      percent: 50,
+      bytesPerSecond: 1024,
+    })
 
     expect(webContents.send).toHaveBeenCalledTimes(5)
     expect(sends).toContainEqual({ channel: 'update:status', payload: { status: 'checking' } })

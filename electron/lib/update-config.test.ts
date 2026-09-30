@@ -14,10 +14,8 @@ describe('UPDATE_CONFIG', () => {
     expect(UPDATE_CONFIG.repo).toBe('bidcraft')
   })
 
-  it('类型上声明为 Readonly，TypeScript 不允许赋值', () => {
-    // @ts-expect-error - 故意写只读字段，TypeScript 编译期应拒绝
-    const _wrote: string = UPDATE_CONFIG.owner
-    expect(_wrote).toBe('chenjiancy')
+  it('owner 为 chenjiancy', () => {
+    expect(UPDATE_CONFIG.owner).toBe('chenjiancy')
   })
 })
 
