@@ -1,7 +1,7 @@
-import { Layout, Menu, Tag } from 'antd'
+import { Layout, Menu, Tag, Tooltip } from 'antd'
 import { useEffect } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { BOTTOM_NAV_ITEMS, NAV_ITEMS } from './nav-config'
+import { BOTTOM_NAV_ITEMS, getNavItems } from './nav-config'
 import { useAppStore } from '../stores/useAppStore'
 import ThemeToggle from '../components/ThemeToggle'
 
@@ -13,11 +13,22 @@ export default function AppLayout() {
   const themeMode = useAppStore((s) => s.themeMode)
   const currentEnterprise = useAppStore((s) => s.currentEnterprise)
   const currentProject = useAppStore((s) => s.currentProject)
+  const isParseConfirmed = useAppStore((s) => s.isParseConfirmed)
+  const isFormatListConfirmed = useAppStore((s) => s.isFormatListConfirmed)
+  const isMaterialConfirmed = useAppStore((s) => s.isMaterialConfirmed)
 
   // 同步 data-theme 到根节点（驱动 CSS 变量与 Tailwind dark variant）
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode
   }, [themeMode])
+
+  const navItems = getNavItems({
+    hasEnterprise: !!currentEnterprise,
+    hasProject: !!currentProject,
+    parseConfirmed: isParseConfirmed,
+    formatConfirmed: isFormatListConfirmed,
+    materialConfirmed: isMaterialConfirmed,
+  })
 
   return (
     <Layout className="h-full">
@@ -40,10 +51,17 @@ export default function AppLayout() {
             className="flex-1 overflow-auto"
             style={{ borderInlineEnd: 'none', background: 'transparent' }}
             onClick={({ key }) => navigate(key)}
-            items={NAV_ITEMS.map((item) => ({
+            items={navItems.map((item) => ({
               key: item.path,
               icon: item.icon,
-              label: item.label,
+              label: item.disabled ? (
+                <Tooltip title={item.disabledTooltip} placement="right">
+                  <span>{item.label}</span>
+                </Tooltip>
+              ) : (
+                item.label
+              ),
+              disabled: item.disabled,
             }))}
           />
           <Menu
