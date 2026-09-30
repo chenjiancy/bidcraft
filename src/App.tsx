@@ -4,6 +4,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './layouts/AppLayout'
 import RequireUnlock from './components/RequireUnlock'
 import WorkspacePage from './pages/workspace/WorkspacePage'
+import ProjectHomePage from './pages/parse/ProjectHomePage'
 import ParsePage from './pages/parse/ParsePage'
 import BidPage from './pages/bid/BidPage'
 import CheckPage from './pages/check/CheckPage'
@@ -31,6 +32,8 @@ export default function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/materials" element={<MaterialsPage />} />
           <Route path="/templates" element={<TemplatesPage />} />
+          {/* 项目首页：进入项目后的默认页，展示模块卡片与解锁状态 */}
+          <Route path="/project-home" element={<ProjectHomePage />} />
           <Route path="/parse" element={<ParsePage />} />
           {/* 商务标模块：PARSE_CONFIRMED 即可进入（格式清单复核在页内完成） */}
           <Route element={<RequireUnlock requireFormatConfirm={false} />}>

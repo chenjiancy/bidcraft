@@ -239,7 +239,7 @@ export default function WorkspacePage() {
             type="primary"
             onClick={() => {
               setCurrentProject({ id: record.id, name: record.name, agent: record.agent })
-              navigate('/parse')
+              navigate('/project-home')
             }}
           >
             进入项目

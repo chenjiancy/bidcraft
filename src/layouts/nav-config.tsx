@@ -74,6 +74,11 @@ export function getNavItems(opts: {
   if (opts.hasProject) {
     items.push(
       {
+        path: '/project-home',
+        label: '项目首页',
+        icon: decorative(<FolderOpenOutlined />),
+      },
+      {
         path: '/parse',
         label: '招标文件解析',
         icon: decorative(<FileSearchOutlined />),
