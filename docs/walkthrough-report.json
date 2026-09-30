@@ -1,0 +1,122 @@
+[
+  {
+    "step": 0,
+    "status": "OK",
+    "msg": "Sidecar 就绪 port=2348"
+  },
+  {
+    "step": 1,
+    "status": "OK",
+    "msg": "企业: id=fbf53ab0f26f4daf87bba1be81c5db23, name=走查测试企业"
+  },
+  {
+    "step": 2,
+    "status": "OK",
+    "msg": "项目: id=01de1e369e894357bf91976df89973e3, name=和县2026年老旧小区改造项目（EPC总承包）监理, status=INIT"
+  },
+  {
+    "step": 3,
+    "status": "OK",
+    "msg": "源文件登记成功: 和县2026年老旧小区改造项目（EPC总承包）监理采购文件.doc"
+  },
+  {
+    "step": 3,
+    "status": "OK",
+    "msg": "parse_status: UPLOADED"
+  },
+  {
+    "step": 4,
+    "status": "WARN",
+    "msg": "SSE 连接异常（任务后台运行）: timed out"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "解析完成，状态: SCORE_PARSED"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "源文件数: 1"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "  - ?: 18 章节"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "    [1] 采\r\n购\r\n文\r\n件 (p0-1)"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "    [2] 采购公告 (p2-3)"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "    [3] 供应商须知前附表 (p4-5)"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "    [4] 供应商须知 (p6-7)"
+  },
+  {
+    "step": 4,
+    "status": "OK",
+    "msg": "    [5] 附件 (p8-19)"
+  },
+  {
+    "step": 5,
+    "status": "OK",
+    "msg": "进入 PARSE_REVIEW 成功"
+  },
+  {
+    "step": 5,
+    "status": "OK",
+    "msg": "清单总条目: 0, 已确认: 0"
+  },
+  {
+    "step": 5,
+    "status": "OK",
+    "msg": "已全部确认"
+  },
+  {
+    "step": 6,
+    "status": "OK",
+    "msg": "素材库素材数: 0"
+  },
+  {
+    "step": 6,
+    "status": "OK",
+    "msg": "素材归档成功: id=b2428b87c1a44de0ae1bc216753ef24b, name=各类资质证书及其他重要资料, cat=qualification"
+  },
+  {
+    "step": 7,
+    "status": "OK",
+    "msg": "素材需求项数: 0"
+  },
+  {
+    "step": 7,
+    "status": "WARN",
+    "msg": "需求项为 0 — 请确认是否使用了招标文件（tender）"
+  },
+  {
+    "step": 8,
+    "status": "OK",
+    "msg": "格式清单条目数: 0"
+  },
+  {
+    "step": 8,
+    "status": "OK",
+    "msg": "模板库模板数: 0"
+  },
+  {
+    "step": 8,
+    "status": "OK",
+    "msg": "渲染状态: None"
+  }
+]
