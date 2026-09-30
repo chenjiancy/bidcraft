@@ -100,8 +100,8 @@
 - [x] CI 分层触发矩阵已实现（分支跑单元+集成，PR 跑全部含E2E+黄金样本；PR #13 实证）
 - [x] dev/prod userData 目录隔离已实现（BidCraft-dev / BidCraftApp，互不污染）
 - [x] 本机全部测试为绿（规则 9）（22 前端 + 43 后端 = 65 passed）
-- [x] Task 22：三层递进导航 + workspace两步引导 + 项目首页模块卡片 + access统一管理（TR-22.1～22.5，commit 01c31f4；pytest 279 passed + vitest 74 passed）
-  - 披露：合并时有 4 文件冲突（AppLayout/nav-config/WorkspacePage/ProjectHomePage），均已解决；未做真实样本窗口验证
+- [x] Task 22：三层递进导航 + workspace两步引导 + 项目首页模块卡片 + access统一管理（TR-22.1～22.5，commit 01c31f4；pytest 287 passed + vitest 77 passed）
+  - 披露：合并时有 4 文件冲突（AppLayout/nav-config/WorkspacePage/ProjectHomePage），均已解决；TR-22.3 锁定项 tooltip 命中区过窄与 global.d.ts 重复声明缺陷已于 PR #53 修复（commit 228842e）
 
 ## 发布前检查
 - [ ] CI/CD 流水线通过（本机全绿后推送触发）
