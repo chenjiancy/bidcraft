@@ -10,7 +10,7 @@ import { supportsAcrylic, TITLEBAR_HEIGHT } from './window-config'
 
 describe('TITLEBAR_HEIGHT', () => {
   it('为正整数，且等于主进程约定值', () => {
-    expect(TITLEBAR_HEIGHT).toBe(42)
+    expect(TITLEBAR_HEIGHT).toBe(64)
     expect(Number.isInteger(TITLEBAR_HEIGHT)).toBe(true)
     expect(TITLEBAR_HEIGHT).toBeGreaterThan(0)
   })

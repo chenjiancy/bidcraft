@@ -88,11 +88,17 @@ export default function AppLayout() {
       </Layout.Sider>
 
       <Layout>
-        <Layout.Header className="flex items-center justify-between px-4 border-b border-[var(--bc-border)]">
+        <Layout.Header
+          className="flex items-center justify-between px-4 border-b border-[var(--bc-border)]"
+          style={{
+            '-webkit-app-region': 'drag',
+            background: 'var(--bc-sider-bg)',
+          }}
+        >
           <div className="font-medium" style={{ color: 'var(--bc-text)' }}>
             {location.pathname === '/workspace' ? '企业/项目' : location.pathname || ''}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" style={{ '-webkit-app-region': 'no-drag' }}>
             {import.meta.env.DEV && <Tag color="blue">dev</Tag>}
             <ThemeToggle />
           </div>

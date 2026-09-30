@@ -8,8 +8,8 @@
  */
 import { release } from 'node:os'
 
-/** 自定义标题栏高度（px），与渲染层 TitleBar 组件保持一致 */
-export const TITLEBAR_HEIGHT = 42
+/** 自定义标题栏高度（px），与渲染层 AppLayout Header 保持一致 */
+export const TITLEBAR_HEIGHT = 64
 
 interface Deps {
   platform: string
