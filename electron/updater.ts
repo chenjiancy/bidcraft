@@ -1,41 +1,30 @@
+/**
+ * 自动更新框架初始化：装配配置、分发事件、触发检查。
+ *
+ * 主进程调用入口，依赖 electron / electron-updater。
+ * 配置与事件逻辑已抽离至 update-config.ts / update-dispatch.ts，可独立单测。
+ */
 import { BrowserWindow } from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { UPDATE_CONFIG, UPDATE_STRATEGY } from './lib/update-config'
+import { registerUpdaterEvents } from './lib/update-dispatch'
 
 /**
- * 自动更新框架初始化。
- * 策略：静默后台下载 + app 退出时自动安装（无需用户干预）。
- * 事件通过 IPC 转发到渲染进程，供前端显示更新状态。
+ * 初始化自动更新：配置 feed URL、设置策略、注册事件、启动检查。
+ *
+ * @param win - 主窗口引用，用于向渲染进程发送 IPC 事件
  */
 export function initUpdater(win: BrowserWindow): void {
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'chenjiancy',
-    repo: 'bidcraft',
-  })
+  autoUpdater.setFeedURL(UPDATE_CONFIG)
 
-  // 静默后台下载；安装在应用退出时自动进行
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.autoDownload = UPDATE_STRATEGY.autoDownload
+  autoUpdater.autoInstallOnAppQuit = UPDATE_STRATEGY.autoInstallOnAppQuit
 
   const send = (channel: string, payload?: unknown): void => {
     win.webContents.send(channel, payload)
   }
 
-  autoUpdater.on('checking-for-update', () => send('update:status', { status: 'checking' }))
-
-  autoUpdater.on('update-available', () => send('update:status', { status: 'available' }))
-
-  autoUpdater.on('update-not-available', () => send('update:status', { status: 'not_available' }))
-
-  autoUpdater.on('download-progress', (progress: { percent: number; bytesPerSecond: number }) =>
-    send('update:download-progress', { percent: Math.round(progress.percent) }),
-  )
-
-  autoUpdater.on('update-downloaded', () => send('update:status', { status: 'downloaded' }))
-
-  autoUpdater.on('error', (err: { message: string }) =>
-    send('update:status', { status: 'error', message: err.message }),
-  )
+  registerUpdaterEvents(autoUpdater, send)
 
   // 启动时自动检查更新（静默后台下载，退出时自动安装）
   autoUpdater.checkForUpdates()

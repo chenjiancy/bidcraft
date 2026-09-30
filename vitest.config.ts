@@ -13,7 +13,7 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/__tests__/setup.ts',
-    include: ['src/**/*.{test,spec}.{ts,tsx}', 'electron/lib/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'electron/**/*.{test,spec}.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
