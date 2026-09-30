@@ -24,19 +24,26 @@ export interface AutoUpdaterEvents {
  *   download-progress     → update:download-progress { percent }
  */
 export function registerUpdaterEvents(emitter: AutoUpdaterEvents, send: UpdateSendFn): void {
-  emitter.on('checking-for-update', () => send('update:status', { status: 'checking' }))
+  const on = (event: string, listener: (...args: unknown[]) => void): void => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(emitter as any).on(event, listener)
+  }
 
-  emitter.on('update-available', () => send('update:status', { status: 'available' }))
+  on('checking-for-update', () => send('update:status', { status: 'checking' }))
 
-  emitter.on('update-not-available', () => send('update:status', { status: 'not_available' }))
+  on('update-available', () => send('update:status', { status: 'available' }))
 
-  emitter.on('download-progress', (progress: { percent: number; bytesPerSecond: number }) =>
-    send('update:download-progress', { percent: Math.round(progress.percent) }),
+  on('update-not-available', () => send('update:status', { status: 'not_available' }))
+
+  on('download-progress', (progress: unknown) =>
+    send('update:download-progress', {
+      percent: Math.round((progress as { percent: number }).percent),
+    }),
   )
 
-  emitter.on('update-downloaded', () => send('update:status', { status: 'downloaded' }))
+  on('update-downloaded', () => send('update:status', { status: 'downloaded' }))
 
-  emitter.on('error', (err: { message: string }) =>
-    send('update:status', { status: 'error', message: err.message }),
+  on('error', (err: unknown) =>
+    send('update:status', { status: 'error', message: (err as { message: string }).message }),
   )
 }
