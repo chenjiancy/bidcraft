@@ -75,15 +75,12 @@ interface AppState {
    */
   formatStatus: string | undefined
   isFormatListConfirmed: boolean
-<<<<<<< HEAD
   /**
    * 素材提取清单是否已确认保存（MATERIAL_CONFIRMED 门禁信号）。
    * Task 16：由后端 parse_status === 'MATERIAL_CONFIRMED' 派生。
    */
   materialStatus: string | undefined
   isMaterialConfirmed: boolean
-=======
->>>>>>> origin/feat/task-14-format-checklist
   /** 当前企业（持久化，跨重启记住） */
   currentEnterprise: EnterpriseSummary | null
   /** 当前项目（不持久化，每次启动需重新选） */
@@ -93,10 +90,7 @@ interface AppState {
   setParseConfirmed: (confirmed: boolean) => void
   setParseStatus: (status: string | undefined) => void
   setFormatStatus: (status: string | undefined) => void
-<<<<<<< HEAD
   setMaterialStatus: (status: string | undefined) => void
-=======
->>>>>>> origin/feat/task-14-format-checklist
   setCurrentEnterprise: (ent: EnterpriseSummary | null) => void
   setCurrentProject: (proj: ProjectSummary | null) => void
 }
@@ -109,18 +103,14 @@ export const useAppStore = create<AppState>()(
       parseStatus: undefined,
       formatStatus: undefined,
       isFormatListConfirmed: false,
-<<<<<<< HEAD
       materialStatus: undefined,
       isMaterialConfirmed: false,
-=======
->>>>>>> origin/feat/task-14-format-checklist
       currentEnterprise: null,
       currentProject: null,
       toggleTheme: () => set((s) => ({ themeMode: s.themeMode === 'light' ? 'dark' : 'light' })),
       setThemeMode: (themeMode) => set({ themeMode }),
       setParseConfirmed: (isParseConfirmed) => set({ isParseConfirmed }),
       setParseStatus: (parseStatus) =>
-<<<<<<< HEAD
         set({
           parseStatus,
           isParseConfirmed: PARSE_CONFIRMED_STATUSES.includes(parseStatus ?? ''),
@@ -136,11 +126,6 @@ export const useAppStore = create<AppState>()(
           materialStatus,
           isMaterialConfirmed: MATERIAL_CONFIRMED_STATUSES.includes(materialStatus ?? ''),
         }),
-=======
-        set({ parseStatus, isParseConfirmed: parseStatus === 'PARSE_CONFIRMED' }),
-      setFormatStatus: (formatStatus) =>
-        set({ formatStatus, isFormatListConfirmed: formatStatus === 'FORMAT_CONFIRMED' }),
->>>>>>> origin/feat/task-14-format-checklist
       // 切换企业时清空当前项目并重置解析确认（项目隔离边界 + 门禁安全）
       setCurrentEnterprise: (currentEnterprise) =>
         set({
@@ -150,11 +135,8 @@ export const useAppStore = create<AppState>()(
           parseStatus: undefined,
           isFormatListConfirmed: false,
           formatStatus: undefined,
-<<<<<<< HEAD
           materialStatus: undefined,
           isMaterialConfirmed: false,
-=======
->>>>>>> origin/feat/task-14-format-checklist
         }),
       // 切换项目时重置解析确认（不同项目的解析状态独立）
       setCurrentProject: (currentProject) =>
@@ -164,11 +146,8 @@ export const useAppStore = create<AppState>()(
           parseStatus: undefined,
           isFormatListConfirmed: false,
           formatStatus: undefined,
-<<<<<<< HEAD
           materialStatus: undefined,
           isMaterialConfirmed: false,
-=======
->>>>>>> origin/feat/task-14-format-checklist
         }),
     }),
     {

@@ -1,10 +1,6 @@
 # AI标书制作 - 实施任务清单（tasks.md）
 
-<<<<<<< HEAD
 > 状态：Phase 1.0 已完成（Task 1-7，PR #13/#15/#17/#22/#24/#26）；Phase 1.1 已完成（Task 8 PR #31、Task 9 PR #33、Task 10 PR #34、Task 11 PR #35、Task 12 PR #36、Task 13 PR #37）；Phase 1.2 全部完成（Task 14 PR #38、Task 15 PR #39、Task 16 PR #40、Task 17 PR #41、Task 18 PR #43、Task 19 PR #44、Task 20 PR #45、Task 21 PR #46）；代码审查缺陷修复 PR #47（已合并）；Task 22 合并完成（commit 01c31f4）。
-=======
-> 状态：Phase 1.0 已完成（Task 1-7，PR #13/#15/#17/#22/#24/#26）；Phase 1.1 已完成（Task 8 PR #31、Task 9 PR #33、Task 10 PR #34、Task 11 PR #35、Task 12 PR #36、Task 13 PR #37）；Phase 1.2 Task 14 已完成（PR #38），Task 15-21 待"开始编码"指令。
->>>>>>> origin/feat/task-14-format-checklist
 > 执行纪律：逐项完成 → 立即报告 → 用户确认 → 提交 → 再进入下一项；未经确认不跨项。
 > 编码冻结：须收到用户明确"开始编码"指令后方可执行 Task 1。
 > 任务类型的测试要求（TR）仅可为 `rule` 或 `rubric`。

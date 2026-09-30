@@ -57,7 +57,7 @@ async def convert_to_pdf(
 ) -> Path:
     """把单个 .doc/.docx 转换为 PDF，返回输出 PDF 路径。
 
-    输出文件名与源同名（``a.doc`` → ``a.pdf``）；已存在则调用方负责命名。
+    输出文件名与源同名（``a.doc`` → ``a.pdf``）；同名已存在时追加 ``-1`` 后缀，不覆盖已有产物。
     """
     soffice = find_soffice()
     if soffice is None:
@@ -67,69 +67,75 @@ async def convert_to_pdf(
         )
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    # 独立 profile：避免并发转换时 " soffice 已在运行" 的 profile 锁
-    profile_dir = Path(tempfile.mkdtemp(prefix="bidcraft-lo-", dir=str(out_dir)))
-    profile_url = profile_dir.resolve().as_uri()
-
-    cmd = [
-        str(soffice),
-        "--headless",
-        "--norestore",
-        "--nofirststartwizard",
-        f"-env:UserInstallation={profile_url}",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        str(out_dir),
-        str(src),
-    ]
-
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    cancelled = False
-    cancel_task: asyncio.Task[None] | None = None
+    # 独立 staging 目录：既承载 soffice 的 UserInstallation profile（避免并发 profile 锁），
+    # 又承载本次转换产物；产物最后以唯一名移入 out_dir，避免同名源互相覆盖（C6）。
+    stage_dir = Path(tempfile.mkdtemp(prefix="bidcraft-lo-", dir=str(out_dir)))
     try:
-        if cancel_event is not None:
+        profile_dir = stage_dir / "profile"
+        profile_dir.mkdir()
+        profile_url = profile_dir.resolve().as_uri()
 
-            async def _wait_cancel() -> None:
-                nonlocal cancelled
-                await cancel_event.wait()
-                cancelled = True  # 先置标志再 kill，避免与 communicate 返回竞态
-                proc.kill()
+        cmd = [
+            str(soffice),
+            "--headless",
+            "--norestore",
+            "--nofirststartwizard",
+            f"-env:UserInstallation={profile_url}",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(stage_dir),
+            str(src),
+        ]
 
-            cancel_task = asyncio.create_task(_wait_cancel())
-            try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        cancelled = False
+        cancel_task: asyncio.Task[None] | None = None
+        try:
+            if cancel_event is not None:
+
+                async def _wait_cancel() -> None:
+                    nonlocal cancelled
+                    await cancel_event.wait()
+                    cancelled = True  # 先置标志再 kill，避免与 communicate 返回竞态
+                    proc.kill()
+
+                cancel_task = asyncio.create_task(_wait_cancel())
+                try:
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+                finally:
+                    cancel_task.cancel()
+                if cancelled:
+                    raise asyncio.CancelledError("用户取消转换")
+            else:
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            finally:
-                cancel_task.cancel()
-            if cancelled:
-                raise asyncio.CancelledError("用户取消转换")
-        else:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except TimeoutError:
-        proc.kill()
-        await proc.wait()
-        raise PreprocessError(f"LibreOffice 转换超时（>{timeout}s）：{src.name}") from None
-    finally:
-        # 外层取消时确保 soffice 不成为孤儿
-        if proc.returncode is None:
+        except TimeoutError:
             proc.kill()
-            with contextlib.suppress(Exception):
-                await proc.wait()
-        shutil.rmtree(profile_dir, ignore_errors=True)
+            await proc.wait()
+            raise PreprocessError(f"LibreOffice 转换超时（>{timeout}s）：{src.name}") from None
+        finally:
+            # 外层取消/异常时确保 soffice 不成为孤儿
+            if proc.returncode is None:
+                proc.kill()
+                with contextlib.suppress(Exception):
+                    await proc.wait()
 
-    if proc.returncode != 0:
-        detail = (stderr or stdout).decode("utf-8", errors="replace")[-500:]
-        raise PreprocessError(f"LibreOffice 转换失败（exit {proc.returncode}）：{detail}")
+        if proc.returncode != 0:
+            detail = (stderr or stdout).decode("utf-8", errors="replace")[-500:]
+            raise PreprocessError(f"LibreOffice 转换失败（exit {proc.returncode}）：{detail}")
 
-    produced = out_dir / f"{src.stem}.pdf"
-    if not produced.is_file():
-        detail = (stdout or b"").decode("utf-8", errors="replace")[-500:]
-        raise PreprocessError(f"转换完成但未找到输出 PDF：{produced.name}；{detail}")
+        produced = stage_dir / f"{src.stem}.pdf"
+        if not produced.is_file():
+            detail = (stdout or b"").decode("utf-8", errors="replace")[-500:]
+            raise PreprocessError(f"转换完成但未找到输出 PDF：{produced.name}；{detail}")
 
-    # C6 修复：同名 doc/docx 转换结果可能覆盖，返回唯一路径
-    produced = paths.unique_path(produced)
-    return produced
+        # C6：同名 doc/docx 转出的 PDF 会同名，移入 out_dir 时取唯一名，避免互相覆盖
+        final = paths.unique_path(out_dir / produced.name)
+        shutil.move(str(produced), str(final))
+        return final
+    finally:
+        shutil.rmtree(stage_dir, ignore_errors=True)
