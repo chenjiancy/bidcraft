@@ -124,6 +124,15 @@ window.bid = {
         }
         return Promise.resolve(base)
       }
+      if (route.includes('/format/list'))
+        return Promise.resolve({
+          items: [],
+          total: 0,
+          confirmed_count: 0,
+          missing_count: 0,
+          external_count: 0,
+          confirmed_at: null,
+        })
       return Promise.resolve([])
     },
     stream: () => Promise.resolve({ stage: 'completed', percent: 100, message: '' }),

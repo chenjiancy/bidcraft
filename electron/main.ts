@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { release } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
+import { supportsAcrylic, TITLEBAR_HEIGHT } from './lib/window-config'
 import { isTerminalStage, parseSSE, type ProgressEvent } from './lib/sse'
 import {
   getSidecarHandle,
@@ -26,16 +26,6 @@ app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp')
 // 主窗口引用（updater 需要向它发送事件）
 let mainWindow: BrowserWindow | null = null
 
-/** 自定义标题栏高度（与渲染层 TitleBar 保持一致） */
-const TITLEBAR_HEIGHT = 42
-
-/**
- * Windows 11（build >= 22000）才提供 Acrylic 磨玻璃系统材质。
- * 更早的系统会静默忽略该参数，此时渲染层用渐变背景兜底。
- */
-const supportsAcrylic =
-  process.platform === 'win32' && Number(release().split('.')[2] ?? 0) >= 22000
-
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -45,7 +35,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     // 系统级磨玻璃材质（Win11 22H2+）；不可用时窗口为纯色，由渲染层兜底背景接管
-    ...(supportsAcrylic ? { backgroundMaterial: 'acrylic' as const } : {}),
+    ...(supportsAcrylic() ? { backgroundMaterial: 'acrylic' as const } : {}),
     // 隐藏系统标题栏但保留原生窗口控件：悬停最大化按钮仍有 Snap Layouts 分屏预览
     titleBarStyle: 'hidden',
     titleBarOverlay: {

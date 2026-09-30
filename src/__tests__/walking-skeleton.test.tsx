@@ -84,6 +84,15 @@ describe('Task 7/13: Walking Skeleton 端到端', () => {
           confirmed_items: 1,
         })
       }
+      if (route.includes('/format/list'))
+        return Promise.resolve({
+          items: [],
+          total: 0,
+          confirmed_count: 0,
+          missing_count: 0,
+          external_count: 0,
+          confirmed_at: null,
+        })
       return Promise.resolve([])
     })
     vi.spyOn(window.bid.sidecar, 'stream').mockResolvedValue({

@@ -68,15 +68,16 @@ export default function BidPage() {
   const loadList = useCallback(async () => {
     if (!eid || !pid) return
     const data = await getFormatList(eid, pid)
-    setItems(data.items)
-    setTotal(data.total)
-    setConfirmedCount(data.confirmed_count)
-    setMissingCount(data.missing_count)
-    setExternalCount(data.external_count)
+    const items: FormatListItem[] = Array.isArray(data?.items) ? data.items : []
+    setItems(items)
+    setTotal(data.total ?? 0)
+    setConfirmedCount(data.confirmed_count ?? 0)
+    setMissingCount(data.missing_count ?? 0)
+    setExternalCount(data.external_count ?? 0)
     setConfirmedAt(data.confirmed_at ?? null)
     // 恢复已确认态
     const cs: ItemState = {}
-    for (const it of data.items) {
+    for (const it of items) {
       cs[it.key] = it.status === 'confirmed' || it.status === 'added'
     }
     setConfirmState(cs)
