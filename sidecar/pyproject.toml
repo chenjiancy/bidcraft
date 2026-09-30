@@ -31,6 +31,10 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+# scripts/ 为走查/诊断脚本（非生产代码）：放宽格式类规则
+[tool.ruff.lint.per-file-ignores]
+"scripts/**" = ["E501", "E701", "E702", "E722"]
+
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true
