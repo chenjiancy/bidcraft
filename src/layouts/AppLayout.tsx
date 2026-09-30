@@ -97,7 +97,7 @@ export default function AppLayout() {
             <ThemeToggle />
           </div>
         </Layout.Header>
-        <Layout.Content className="p-4 overflow-auto" style={{ background: 'var(--bc-bg)' }}>
+        <Layout.Content className="bc-content" style={{ flex: 1, minWidth: 0 }}>
           <Outlet />
         </Layout.Content>
       </Layout>
