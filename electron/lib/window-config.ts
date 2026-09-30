@@ -6,13 +6,13 @@
  *
  * 测试时可通过 deps 参数注入 process/os 以控制平台与构建号。
  */
-import { release, type Platform } from 'node:os'
+import { release } from 'node:os'
 
 /** 自定义标题栏高度（px），与渲染层 TitleBar 组件保持一致 */
 export const TITLEBAR_HEIGHT = 42
 
 interface Deps {
-  platform: Platform | string
+  platform: string
   osRelease: () => string
 }
 

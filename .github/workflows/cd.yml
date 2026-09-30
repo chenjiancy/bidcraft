@@ -49,8 +49,9 @@ jobs:
       - name: Build sidecar exe
         run: |
           cd sidecar
-          uv pip install pyinstaller --python 3.12
-          uv run pyinstaller bidcraft-sidecar.spec --noconfirm
+          uv venv
+          uv pip install pyinstaller --python .venv\Scripts\python.exe
+          .venv\Scripts\pyinstaller.exe bidcraft-sidecar.spec --noconfirm
           New-Item -ItemType Directory -Force -Path "../release/sidecar" | Out-Null
           Copy-Item "dist/bidcraft-sidecar.exe" "../release/sidecar/bidcraft-sidecar.exe" -Force
           Remove-Item build -Recurse -Force -ErrorAction SilentlyContinue

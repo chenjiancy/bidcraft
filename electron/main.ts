@@ -190,7 +190,7 @@ app.whenReady().then(() => {
 
   // 窗口外观：告知渲染层当前是否启用了系统磨玻璃材质（决定是否绘制兜底背景）
   ipcMain.handle('window:getChrome', () => ({
-    material: supportsAcrylic ? 'acrylic' : 'solid',
+    material: supportsAcrylic() ? 'acrylic' : 'solid',
     titlebarHeight: TITLEBAR_HEIGHT,
   }))
 
