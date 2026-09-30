@@ -160,6 +160,8 @@ describe('Task 7/13: Walking Skeleton 端到端', () => {
   })
 
   it('确认后可进入商务标页面', () => {
+    useAppStore.getState().setCurrentEnterprise({ id: 'ent-1', name: '测试企业', agent: '张三' })
+    useAppStore.getState().setCurrentProject({ id: 'proj-1', name: '测试项目', agent: '张三' })
     useAppStore.getState().setParseConfirmed(true)
     useAppStore.getState().setFormatStatus('FORMAT_CONFIRMED')
     renderApp('/bid')

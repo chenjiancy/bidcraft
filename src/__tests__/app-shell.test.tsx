@@ -37,6 +37,8 @@ describe('应用外壳与导航', () => {
   })
 
   it('确认清单后业务模块解锁、可正常进入', () => {
+    useAppStore.getState().setCurrentEnterprise({ id: 'ent-1', name: '测试企业', agent: '张三' })
+    useAppStore.getState().setCurrentProject({ id: 'proj-1', name: '测试项目', agent: '张三' })
     useAppStore.getState().setParseConfirmed(true)
     useAppStore.getState().setFormatStatus('FORMAT_CONFIRMED')
     renderApp('/bid')

@@ -5,9 +5,11 @@ import {
   FileTextOutlined,
   FolderOpenOutlined,
   FolderOutlined,
+  HomeOutlined,
   SettingOutlined,
 } from '@ant-design/icons'
 import type { ReactNode } from 'react'
+import { ACCESS_RULES, canAccess } from '../access'
 
 export interface NavItem {
   /** 同时作为路由路径与菜单 key */
@@ -28,30 +30,63 @@ function decorative(icon: ReactNode): ReactNode {
   return <span aria-hidden="true">{icon}</span>
 }
 
-/**
- * 主导航（启动后首页仅保留工作入口）。
- * 解析/商务标/标书检查不进首页导航：经「企业/项目 → 进入项目」按项目流程进入，
- * 解析完成后由解析页内的入口按钮进入商务标制作/标书检查（FR-2 门禁不变）。
- */
-export const NAV_ITEMS: NavItem[] = [
-  { path: '/workspace', label: '企业/项目', icon: decorative(<BankOutlined />) },
-  { path: '/materials', label: '素材库', icon: decorative(<FolderOutlined />) },
-  { path: '/templates', label: '模板库', icon: decorative(<FileTextOutlined />) },
+/** 导航项图标映射（按 path） */
+const NAV_ICONS: Record<string, ReactNode> = {
+  '/workspace': decorative(<BankOutlined />),
+  '/project-home': decorative(<HomeOutlined />),
+  '/parse': decorative(<FileSearchOutlined />),
+  '/bid': decorative(<FolderOpenOutlined />),
+  '/extract': decorative(<FolderOpenOutlined />),
+  '/check': decorative(<CheckCircleOutlined />),
+  '/template-match': decorative(<FileTextOutlined />),
+  '/render': decorative(<FileTextOutlined />),
+  '/materials': decorative(<FolderOutlined />),
+  '/templates': decorative(<FileTextOutlined />),
+  '/settings': decorative(<SettingOutlined />),
+}
+
+/** 导航项显示名称（按 path） */
+const NAV_LABELS: Record<string, string> = {
+  '/workspace': '企业/项目',
+  '/project-home': '项目首页',
+  '/parse': '招标文件解析',
+  '/bid': '商务标制作',
+  '/extract': '素材提取',
+  '/check': '标书检查',
+  '/template-match': '模板匹配',
+  '/render': '逐章渲染',
+  '/materials': '素材库',
+  '/templates': '模板库',
+  '/settings': '配置',
+}
+
+/** 侧边栏展示顺序（已选项目时） */
+const PROJECT_NAV_ORDER = [
+  '/project-home',
+  '/parse',
+  '/bid',
+  '/extract',
+  '/check',
+  '/template-match',
+  '/render',
 ]
 
-/** 导航栏底部固定项 */
+/** 已选企业但未选项目时展示的项 */
+const ENTERPRISE_NAV_ORDER = ['/materials', '/templates']
+
+/** 底部固定项 */
 export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { path: '/settings', label: '配置', icon: decorative(<SettingOutlined />) },
 ]
 
 /**
- * 三层递进导航：根据 currentEnterprise / currentProject / parseConfirmed / formatConfirmed
- * 动态计算侧边栏可见项与锁定状态。
+ * 三层递进导航：根据 currentEnterprise / currentProject / 门禁状态
+ * 动态计算侧边栏可见项与锁定状态，与路由 ACCESS_RULES 共用同一套 access 判断。
  *
  * 层级规则：
- * - 未选企业：仅显示「企业/项目」「配置」
+ * - 未选企业：仅显示「企业/项目」
  * - 已选企业未选项目：追加「素材库」「模板库」
- * - 已选项目：追加业务模块（解析/商务标/素材提取/标书检查/模板匹配/渲染），按门禁状态锁定
+ * - 已选项目：追加业务模块，按门禁状态锁定
  */
 export function getNavItems(opts: {
   hasEnterprise: boolean
@@ -60,65 +95,40 @@ export function getNavItems(opts: {
   formatConfirmed: boolean
   materialConfirmed: boolean
 }): NavItemWithAccess[] {
+  const state = {
+    hasEnterprise: opts.hasEnterprise,
+    hasProject: opts.hasProject,
+    parseConfirmed: opts.parseConfirmed,
+    formatConfirmed: opts.formatConfirmed,
+    materialConfirmed: opts.materialConfirmed,
+  }
+
   const items: NavItemWithAccess[] = [
     { path: '/workspace', label: '企业/项目', icon: decorative(<BankOutlined />) },
   ]
 
   if (opts.hasEnterprise) {
-    items.push(
-      { path: '/materials', label: '素材库', icon: decorative(<FolderOutlined />) },
-      { path: '/templates', label: '模板库', icon: decorative(<FileTextOutlined />) },
-    )
+    for (const path of ENTERPRISE_NAV_ORDER) {
+      items.push({
+        path,
+        label: NAV_LABELS[path],
+        icon: NAV_ICONS[path],
+      })
+    }
   }
 
   if (opts.hasProject) {
-    items.push(
-      {
-        path: '/project-home',
-        label: '项目首页',
-        icon: decorative(<FolderOpenOutlined />),
-      },
-      {
-        path: '/parse',
-        label: '招标文件解析',
-        icon: decorative(<FileSearchOutlined />),
-      },
-      {
-        path: '/bid',
-        label: '商务标制作',
-        icon: decorative(<FolderOpenOutlined />),
-        disabled: !opts.parseConfirmed,
-        disabledTooltip: '需先完成招标文件解析并确认清单',
-      },
-      {
-        path: '/extract',
-        label: '素材提取',
-        icon: decorative(<FolderOpenOutlined />),
-        disabled: !opts.formatConfirmed,
-        disabledTooltip: '需先完成格式清单确认',
-      },
-      {
-        path: '/check',
-        label: '标书检查',
-        icon: decorative(<CheckCircleOutlined />),
-        disabled: !opts.formatConfirmed,
-        disabledTooltip: '需先完成格式清单确认',
-      },
-      {
-        path: '/template-match',
-        label: '模板匹配',
-        icon: decorative(<FileTextOutlined />),
-        disabled: !opts.materialConfirmed,
-        disabledTooltip: '需先完成素材提取清单确认',
-      },
-      {
-        path: '/render',
-        label: '逐章渲染',
-        icon: decorative(<FileTextOutlined />),
-        disabled: !opts.materialConfirmed,
-        disabledTooltip: '需先完成素材提取清单确认',
-      },
-    )
+    for (const path of PROJECT_NAV_ORDER) {
+      const rule = ACCESS_RULES.find((r) => r.path === path)
+      const allowed = rule ? canAccess(rule.access, state) : false
+      items.push({
+        path,
+        label: NAV_LABELS[path],
+        icon: NAV_ICONS[path],
+        disabled: !allowed,
+        disabledTooltip: rule?.denyReason || undefined,
+      })
+    }
   }
 
   return items

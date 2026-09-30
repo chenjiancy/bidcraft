@@ -263,7 +263,7 @@ describe('Task 16: 素材提取清单', () => {
     useAppStore.getState().setFormatStatus('FORMAT_CONFIRMED')
     renderApp('/extract')
 
-    await screen.findByText('请先在「企业/项目」中选择一个项目')
+    await screen.findByText('模块未解锁')
   })
 
   it('TR-16.x: 解析页 FORMAT_CONFIRMED 提供「前往素材提取清单」入口', async () => {
@@ -320,6 +320,8 @@ describe('Task 16: 素材提取清单', () => {
     }) as never)
 
     // PARSE_CONFIRMED：格式清单尚未确认，但商务标模块须可进入完成复核
+    useAppStore.getState().setCurrentEnterprise({ id: 'ent-1', name: '测试企业', agent: '张三' })
+    useAppStore.getState().setCurrentProject({ id: 'proj-1', name: '测试项目', agent: '张三' })
     useAppStore.getState().setParseConfirmed(true)
     useAppStore.getState().setFormatStatus(undefined)
     renderApp('/bid')
