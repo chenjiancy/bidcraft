@@ -647,7 +647,7 @@
 - （暂无，仅在独立评审产生 actionable 发现后，按 Issue I-N 登记）
 
 ## Task 22: 三层递进导航与 workspace 两步引导
-- **Status**: in_progress（2026-09-30 开始）
+- **Status**: completed（2026-09-30 完成）
 - **Priority**: high
 - **Depends On**: Task 21
 - **Description**:
