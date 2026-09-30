@@ -16,6 +16,10 @@ import RenderPage from './pages/render/RenderPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import { useAppStore } from './stores/useAppStore'
 
+/** 正文字体栈，与 main.css 的 --font-ui 保持一致 */
+const UI_FONT_FAMILY =
+  "'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif"
+
 export default function App() {
   const themeMode = useAppStore((s) => s.themeMode)
 
@@ -24,6 +28,12 @@ export default function App() {
       locale={zhCN}
       theme={{
         algorithm: themeMode === 'light' ? theme.defaultAlgorithm : theme.darkAlgorithm,
+        token: {
+          // 强调色：青绿（呼应"雾面玻璃 × 公文书卷"的克制调性）
+          colorPrimary: themeMode === 'light' ? '#0d9488' : '#2dd4bf',
+          borderRadius: 10,
+          fontFamily: UI_FONT_FAMILY,
+        },
       }}
     >
       <Routes>

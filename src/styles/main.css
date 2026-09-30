@@ -9,25 +9,389 @@
 /* Tailwind dark: variant 跟随根节点 data-theme（而非默认 prefers-color-scheme） */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+/* ============================================================
+ * 标题字体：思源宋体（Noto Serif SC）子集
+ * 仅用于 UI 标题、品牌名等固定文案，故按 GB2312 一级字表 + ASCII + 常用标点
+ * 子集化（3932 字，各字重约 700KB）。用户数据（企业名/项目名等）一律走正文字体，
+ * 不依赖此字体，避免出现缺字回退导致的字体混排。
+ * 许可：SIL Open Font License 1.1（OFL-1.1）。
+ * ============================================================ */
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/noto-serif-sc-400.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/noto-serif-sc-600.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/noto-serif-sc-700.woff2') format('woff2');
+}
+
 html,
 body,
 #root {
   height: 100%;
 }
 
-/* ===== 主题 CSS 变量（与 AntD 算法同步切换） ===== */
+/* ============================================================
+ * 设计令牌（概念：雾面玻璃 × 公文书卷）
+ * 玻璃质感的"底"由 Windows 11 Acrylic 系统材质提供，这里只定义
+ * 玻璃层的透明度、描边、投影与强调色。
+ * ============================================================ */
+:root {
+  /* 字体栈：标题用宋体（书卷气），正文用系统 UI 无衬线 */
+  --font-display: 'Noto Serif SC', 'SimSun', serif;
+  --font-ui:
+    'Segoe UI Variable Text', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+}
+
 :root[data-theme='light'] {
-  --bc-text: rgba(0, 0, 0, 0.88);
-  --bc-sider-bg: #ffffff;
-  --bc-header-bg: #ffffff;
-  --bc-content-bg: #f0f2f5;
-  --bc-border: #f0f0f0;
+  /* 玻璃层 */
+  --glass: rgba(255, 255, 255, 0.62);
+  --glass-strong: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.72);
+  --glass-divider: rgba(15, 23, 42, 0.07);
+  --sheen: rgba(255, 255, 255, 0.85);
+  /* 侧栏面板色：单纯的白玻璃在浅色桌面/浅色兜底背景上会"消失"，
+     故叠一层冷灰让分区边界始终可辨 */
+  --sidebar-bg: rgba(241, 245, 249, 0.62);
+
+  /* 文字 */
+  --text: #0f172a;
+  --text-2: #475569;
+  --text-3: #94a3b8;
+
+  /* 强调色 */
+  --accent: #0d9488;
+  --accent-soft: rgba(13, 148, 136, 0.12);
+  --accent-ring: rgba(13, 148, 136, 0.28);
+  --amber: #d97706;
+  --amber-soft: rgba(217, 119, 6, 0.13);
+
+  /* 投影 */
+  --shadow-win: 0 34px 90px -26px rgba(15, 23, 42, 0.48), 0 6px 22px -10px rgba(15, 23, 42, 0.22);
+  --shadow-card: 0 2px 4px -2px rgba(15, 23, 42, 0.08), 0 14px 34px -20px rgba(15, 23, 42, 0.35);
+  --shadow-card-hi:
+    0 4px 10px -4px rgba(15, 23, 42, 0.12), 0 26px 50px -24px rgba(15, 23, 42, 0.42);
 }
 
 :root[data-theme='dark'] {
-  --bc-text: rgba(255, 255, 255, 0.85);
-  --bc-sider-bg: #141414;
-  --bc-header-bg: #141414;
-  --bc-content-bg: #000000;
-  --bc-border: #303030;
+  --glass: rgba(22, 27, 34, 0.58);
+  --glass-strong: rgba(22, 27, 34, 0.78);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-divider: rgba(255, 255, 255, 0.07);
+  --sheen: rgba(255, 255, 255, 0.12);
+  --sidebar-bg: rgba(10, 15, 21, 0.46);
+
+  --text: #edf2f8;
+  --text-2: #a8b6c6;
+  --text-3: #7a8798;
+
+  --accent: #2dd4bf;
+  --accent-soft: rgba(45, 212, 191, 0.14);
+  --accent-ring: rgba(45, 212, 191, 0.3);
+  --amber: #fbbf24;
+  --amber-soft: rgba(251, 191, 36, 0.14);
+
+  --shadow-win: 0 40px 110px -30px rgba(0, 0, 0, 0.78), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-card: 0 2px 4px -2px rgba(0, 0, 0, 0.4), 0 16px 36px -22px rgba(0, 0, 0, 0.8);
+  --shadow-card-hi: 0 6px 14px -6px rgba(0, 0, 0, 0.5), 0 30px 56px -26px rgba(0, 0, 0, 0.9);
+}
+
+/* ============================================================
+ * 应用外壳：雾面玻璃
+ * 玻璃的"底"由 Windows 11 Acrylic 系统材质提供；无该材质（Win10 及以下）时
+ * 用渐变兜底，避免窗口变成纯白/纯黑。
+ * ============================================================ */
+.bc-app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+.bc-app[data-material='solid'] {
+  background:
+    radial-gradient(1200px 700px at 12% 8%, rgba(125, 211, 252, 0.45) 0%, transparent 58%),
+    radial-gradient(900px 620px at 88% 18%, rgba(199, 210, 254, 0.45) 0%, transparent 55%),
+    radial-gradient(1000px 800px at 72% 92%, rgba(253, 230, 138, 0.35) 0%, transparent 52%),
+    linear-gradient(150deg, #eef2f7 0%, #e3e9f2 100%);
+}
+
+.bc-app[data-material='solid']:is([data-theme='dark'], :root[data-theme='dark'] *) {
+  background:
+    radial-gradient(1200px 700px at 12% 8%, #0b3b4a 0%, transparent 58%),
+    radial-gradient(900px 620px at 88% 18%, #1e2a5e 0%, transparent 55%),
+    radial-gradient(1000px 800px at 72% 92%, #4a2f10 0%, transparent 52%),
+    linear-gradient(150deg, #0a1120 0%, #141b28 100%);
+}
+
+/* ---------- 标题栏（拖拽区，右侧留白给原生窗口控件） ---------- */
+.bc-titlebar {
+  position: relative;
+  z-index: 6;
+  flex: 0 0 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--glass-divider);
+  -webkit-app-region: drag;
+}
+
+.bc-brand-mark {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: linear-gradient(140deg, var(--accent), #0f766e);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 3px 8px -3px var(--accent-ring);
+}
+
+.bc-brand-name {
+  font-family: var(--font-display);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+.bc-titlebar-ctx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.bc-ctx-item {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-ctx-item--muted {
+  color: var(--text-3);
+}
+
+.bc-ctx-sep {
+  color: var(--text-3);
+}
+
+/* ---------- 主体 ---------- */
+.bc-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ---------- 侧边栏 ---------- */
+.bc-sidebar {
+  width: 232px;
+  flex: 0 0 232px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px 10px;
+  border-right: 1px solid var(--glass-divider);
+  background: var(--sidebar-bg);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+/* 当前作用域卡片：常驻提醒"我在哪个企业/项目下" */
+.bc-scope {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  margin-bottom: 4px;
+  border-radius: 9px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+}
+
+.bc-scope-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.bc-scope-who {
+  min-width: 0;
+}
+
+.bc-scope-who b,
+.bc-scope-who small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bc-scope-who b {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.bc-scope-who small {
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.bc-nav {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.bc-nav-foot {
+  flex: 0 0 auto;
+  padding-top: 6px;
+  border-top: 1px solid var(--glass-divider);
+}
+
+/* ---------- AntD Menu 覆写：贴合玻璃导航观感 ---------- */
+.bc-nav .ant-menu,
+.bc-nav-foot .ant-menu {
+  background: transparent;
+  border-inline-end: none !important;
+}
+
+.bc-nav .ant-menu-item-group-title {
+  padding: 0 11px;
+  margin: 14px 0 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--text-3);
+}
+
+.bc-nav .ant-menu-item,
+.bc-nav-foot .ant-menu-item {
+  width: auto;
+  height: 34px;
+  line-height: 34px;
+  margin: 2px 0;
+  padding-inline: 11px !important;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.bc-nav .ant-menu-inline .ant-menu-item::after,
+.bc-nav-foot .ant-menu-inline .ant-menu-item::after {
+  display: none !important;
+}
+
+.bc-nav .ant-menu-item-selected,
+.bc-nav-foot .ant-menu-item-selected {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent-ring);
+}
+
+.bc-nav .ant-menu-item-disabled,
+.bc-nav-foot .ant-menu-item-disabled {
+  opacity: 0.5;
+}
+
+/* ---------- 主区 ---------- */
+.bc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.bc-topbar {
+  flex: 0 0 54px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--glass-divider);
+}
+
+.bc-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.bc-crumb b {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.bc-topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.bc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  color: var(--text-2);
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+}
+
+.bc-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+
+.bc-pill-ok .bc-pill-dot {
+  background: var(--accent);
+}
+
+.bc-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px;
 }

@@ -25,6 +25,12 @@ export interface NavItemWithAccess extends NavItem {
   disabledTooltip?: string
 }
 
+/** 侧栏分区：工作台 / 企业资源 / 项目流程 */
+export interface NavGroup {
+  label: string
+  items: NavItemWithAccess[]
+}
+
 /** 装饰性图标：aria-hidden 避免污染菜单项的 accessible name */
 function decorative(icon: ReactNode): ReactNode {
   return <span aria-hidden="true">{icon}</span>
@@ -46,7 +52,7 @@ const NAV_ICONS: Record<string, ReactNode> = {
 }
 
 /** 导航项显示名称（按 path） */
-const NAV_LABELS: Record<string, string> = {
+export const NAV_LABELS: Record<string, string> = {
   '/workspace': '企业/项目',
   '/project-home': '项目首页',
   '/parse': '招标文件解析',
@@ -60,18 +66,10 @@ const NAV_LABELS: Record<string, string> = {
   '/settings': '配置',
 }
 
-/** 侧边栏展示顺序（已选项目时） */
-const PROJECT_NAV_ORDER = [
-  '/project-home',
-  '/parse',
-  '/bid',
-  '/extract',
-  '/check',
-  '/template-match',
-  '/render',
-]
+/** 项目流程顺序（已选项目时展示，按门禁状态锁定） */
+const PROJECT_FLOW_ORDER = ['/parse', '/bid', '/extract', '/check', '/template-match', '/render']
 
-/** 已选企业但未选项目时展示的项 */
+/** 企业资源顺序（已选企业时展示） */
 const ENTERPRISE_NAV_ORDER = ['/materials', '/templates']
 
 /** 底部固定项 */
@@ -79,22 +77,26 @@ export const BOTTOM_NAV_ITEMS: NavItem[] = [
   { path: '/settings', label: '配置', icon: decorative(<SettingOutlined />) },
 ]
 
+function plain(path: string): NavItemWithAccess {
+  return { path, label: NAV_LABELS[path], icon: NAV_ICONS[path] }
+}
+
 /**
  * 三层递进导航：根据 currentEnterprise / currentProject / 门禁状态
- * 动态计算侧边栏可见项与锁定状态，与路由 ACCESS_RULES 共用同一套 access 判断。
+ * 动态计算侧边栏分区与锁定状态，与路由 ACCESS_RULES 共用同一套 access 判断。
  *
  * 层级规则：
- * - 未选企业：仅显示「企业/项目」
- * - 已选企业未选项目：追加「素材库」「模板库」
- * - 已选项目：追加业务模块，按门禁状态锁定
+ * - 未选企业：仅「工作台 › 企业/项目」
+ * - 已选企业未选项目：追加「企业资源」
+ * - 已选项目：追加「项目首页」与「项目流程」，流程项按门禁状态锁定
  */
-export function getNavItems(opts: {
+export function getNavGroups(opts: {
   hasEnterprise: boolean
   hasProject: boolean
   parseConfirmed: boolean
   formatConfirmed: boolean
   materialConfirmed: boolean
-}): NavItemWithAccess[] {
+}): NavGroup[] {
   const state = {
     hasEnterprise: opts.hasEnterprise,
     hasProject: opts.hasProject,
@@ -103,33 +105,29 @@ export function getNavItems(opts: {
     materialConfirmed: opts.materialConfirmed,
   }
 
-  const items: NavItemWithAccess[] = [
-    { path: '/workspace', label: '企业/项目', icon: decorative(<BankOutlined />) },
-  ]
+  const workspace: NavItemWithAccess[] = [plain('/workspace')]
+  if (opts.hasProject) workspace.push(plain('/project-home'))
+
+  const groups: NavGroup[] = [{ label: '工作台', items: workspace }]
 
   if (opts.hasEnterprise) {
-    for (const path of ENTERPRISE_NAV_ORDER) {
-      items.push({
-        path,
-        label: NAV_LABELS[path],
-        icon: NAV_ICONS[path],
-      })
-    }
+    groups.push({ label: '企业资源', items: ENTERPRISE_NAV_ORDER.map(plain) })
   }
 
   if (opts.hasProject) {
-    for (const path of PROJECT_NAV_ORDER) {
-      const rule = ACCESS_RULES.find((r) => r.path === path)
-      const allowed = rule ? canAccess(rule.access, state) : false
-      items.push({
-        path,
-        label: NAV_LABELS[path],
-        icon: NAV_ICONS[path],
-        disabled: !allowed,
-        disabledTooltip: rule?.denyReason || undefined,
-      })
-    }
+    groups.push({
+      label: '项目流程',
+      items: PROJECT_FLOW_ORDER.map((path) => {
+        const rule = ACCESS_RULES.find((r) => r.path === path)
+        const allowed = rule ? canAccess(rule.access, state) : false
+        return {
+          ...plain(path),
+          disabled: !allowed,
+          disabledTooltip: rule?.denyReason || undefined,
+        }
+      }),
+    })
   }
 
-  return items
+  return groups.filter((g) => g.items.length > 0)
 }

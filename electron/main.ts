@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { release } from 'node:os'
 import { basename, join, resolve, sep } from 'node:path'
 import { isTerminalStage, parseSSE, type ProgressEvent } from './lib/sse'
 import {
@@ -25,6 +26,16 @@ app.setName(isDev ? 'BidCraft-dev' : 'BidCraftApp')
 // 主窗口引用（updater 需要向它发送事件）
 let mainWindow: BrowserWindow | null = null
 
+/** 自定义标题栏高度（与渲染层 TitleBar 保持一致） */
+const TITLEBAR_HEIGHT = 42
+
+/**
+ * Windows 11（build >= 22000）才提供 Acrylic 磨玻璃系统材质。
+ * 更早的系统会静默忽略该参数，此时渲染层用渐变背景兜底。
+ */
+const supportsAcrylic =
+  process.platform === 'win32' && Number(release().split('.')[2] ?? 0) >= 22000
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -33,6 +44,15 @@ function createWindow(): void {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
+    // 系统级磨玻璃材质（Win11 22H2+）；不可用时窗口为纯色，由渲染层兜底背景接管
+    ...(supportsAcrylic ? { backgroundMaterial: 'acrylic' as const } : {}),
+    // 隐藏系统标题栏但保留原生窗口控件：悬停最大化按钮仍有 Snap Layouts 分屏预览
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#00000000',
+      symbolColor: '#475569',
+      height: TITLEBAR_HEIGHT,
+    },
     webPreferences: {
       preload: join(__dirname, '../preload/preload.js'),
       sandbox: false,
@@ -176,6 +196,22 @@ app.whenReady().then(() => {
     // 白名单：仅允许查询 userData，杜绝任意路径探测
     if (name !== 'userData') throw new Error(`未授权的路径: ${name}`)
     return app.getPath('userData')
+  })
+
+  // 窗口外观：告知渲染层当前是否启用了系统磨玻璃材质（决定是否绘制兜底背景）
+  ipcMain.handle('window:getChrome', () => ({
+    material: supportsAcrylic ? 'acrylic' : 'solid',
+    titlebarHeight: TITLEBAR_HEIGHT,
+  }))
+
+  // 原生窗口控件的符号色需跟随明暗主题，否则深色下按钮发黑不可见
+  ipcMain.handle('window:setTitleBarOverlay', (_event, symbolColor: string) => {
+    if (!mainWindow || !/^#[0-9a-f]{6}$/i.test(symbolColor)) return
+    mainWindow.setTitleBarOverlay({
+      color: '#00000000',
+      symbolColor,
+      height: TITLEBAR_HEIGHT,
+    })
   })
 
   // 本机招标文件选择：sidecar 与 Electron 同机，直接回传绝对路径入库
