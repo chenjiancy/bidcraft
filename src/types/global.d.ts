@@ -63,14 +63,6 @@ export interface BidAPI {
       file: string,
     ) => Promise<{ opened: boolean; path: string }>
   }
-  shell: {
-    openDocxFile: (
-      enterpriseId: string,
-      projectId: string,
-      sourceStem: string,
-      file: string,
-    ) => Promise<{ opened: boolean; path: string }>
-  }
   cred: {
     setApiKey: (apiKey: string) => Promise<{ success: boolean }>
     getApiKey: () => Promise<string | null>

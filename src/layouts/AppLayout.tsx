@@ -66,7 +66,14 @@ export default function AppLayout() {
               icon: item.icon,
               label: item.disabled ? (
                 <Tooltip title={item.disabledTooltip} placement="right">
-                  <span>{item.label}</span>
+                  {/* 命中区须撑满菜单行：antd Tooltip 只监听其直接子元素，
+                      行内 span 仅覆盖文字宽度，行中部 hover 不触发提示 */}
+                  <span
+                    data-testid="nav-locked-tooltip-trigger"
+                    style={{ display: 'block', width: '100%' }}
+                  >
+                    {item.label}
+                  </span>
                 </Tooltip>
               ) : (
                 item.label
