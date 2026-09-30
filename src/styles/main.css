@@ -68,6 +68,8 @@ body,
   /* 侧栏面板色：单纯的白玻璃在浅色桌面/浅色兜底背景上会"消失"，
      故叠一层冷灰让分区边界始终可辨 */
   --sidebar-bg: rgba(241, 245, 249, 0.62);
+  /* 浮层遮罩：磨玻璃窗口下用轻遮罩，避免"黑幕"盖住材质 */
+  --scrim: rgba(15, 23, 42, 0.26);
 
   /* 文字 */
   --text: #0f172a;
@@ -95,6 +97,7 @@ body,
   --glass-divider: rgba(255, 255, 255, 0.07);
   --sheen: rgba(255, 255, 255, 0.12);
   --sidebar-bg: rgba(10, 15, 21, 0.46);
+  --scrim: rgba(0, 0, 0, 0.5);
 
   --text: #edf2f8;
   --text-2: #a8b6c6;
@@ -393,5 +396,237 @@ body,
   flex: 1;
   min-height: 0;
   overflow: auto;
+  padding: 20px 22px 26px;
+}
+
+/* ============================================================
+ * 页面内容区：玻璃卡片统一化
+ * AntD 卡片/表格默认使用不透明底色，会整块盖住 Acrylic 材质，使窗口在
+ * 内容区退化为"实心面板"。这里把所有页面容器统一换成本套玻璃层，
+ * 与标题栏/侧栏共用同一组令牌，页面因此无需各自写样式。
+ * ============================================================ */
+
+/* ---------- 卡片 ---------- */
+.bc-content .ant-card {
+  background: var(--glass);
+  border-color: var(--glass-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+}
+
+.bc-content .ant-card-head {
+  min-height: 52px;
+  padding-inline: 18px;
+  border-bottom-color: var(--glass-divider);
+}
+
+.bc-content .ant-card-body {
   padding: 18px;
+}
+
+/* 小尺寸卡片（页面内的次级容器）收紧内边距 */
+.bc-content .ant-card-small > .ant-card-head {
+  min-height: 44px;
+  padding-inline: 14px;
+}
+
+.bc-content .ant-card-small > .ant-card-body {
+  padding: 14px;
+}
+
+.bc-content .ant-card-hoverable {
+  transition:
+    box-shadow 0.22s ease,
+    transform 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.bc-content .ant-card-hoverable:hover {
+  border-color: var(--accent-ring);
+  box-shadow: var(--shadow-card-hi);
+  transform: translateY(-2px);
+}
+
+/* 卡片标题与页面标题走衬线，呼应"公文书卷"；正文字体保持不变 */
+.bc-content :is(h4, h5).ant-typography,
+.bc-content .ant-card-head-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.bc-content :is(h4, h5).ant-typography {
+  color: var(--text);
+}
+
+/* ---------- 表格：去掉实心底，让玻璃透出来 ---------- */
+.bc-content .ant-table {
+  background: transparent;
+}
+
+.bc-content .ant-table-thead > tr > th {
+  background: var(--glass-strong) !important;
+  border-bottom-color: var(--glass-divider) !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.bc-content .ant-table-thead > tr > th::before {
+  background-color: var(--glass-divider) !important;
+}
+
+.bc-content .ant-table-tbody > tr > td {
+  background: transparent;
+  border-bottom-color: var(--glass-divider);
+}
+
+.bc-content .ant-table-tbody > tr:hover > td {
+  background: var(--accent-soft) !important;
+}
+
+.bc-content .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: var(--accent-soft);
+}
+
+/* 表格内的空态与次要文字统一降噪 */
+.bc-content .ant-table-placeholder > td {
+  background: transparent !important;
+}
+
+.bc-content .ant-pagination {
+  color: var(--text-2);
+}
+
+/* ---------- 浮层：模态框与抽屉（渲染在 body 下，不带内容区前缀） ---------- */
+.ant-modal .ant-modal-content {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-card-hi);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+}
+
+.ant-modal .ant-modal-header {
+  background: transparent;
+}
+
+.ant-modal .ant-modal-title,
+.ant-drawer .ant-drawer-title {
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+.ant-drawer .ant-drawer-content {
+  background: var(--glass-strong);
+  backdrop-filter: blur(30px) saturate(160%);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+}
+
+.ant-drawer .ant-drawer-header {
+  border-bottom-color: var(--glass-divider);
+}
+
+/* 遮罩：轻压暗 + 轻微模糊，保留窗口材质的通透感 */
+.ant-modal-root .ant-modal-mask,
+.ant-drawer .ant-drawer-mask {
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* ---------- 底部消息提示：与浮层同一观感 ---------- */
+.ant-message .ant-message-notice-content {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+}
+
+/* ============================================================
+ * 项目工作台（ProjectHome）：模块卡片
+ * ============================================================ */
+.bc-module-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  font-size: 19px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-ring);
+  color: var(--accent);
+}
+
+.bc-module-card .ant-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+}
+
+.bc-module-card .bc-module-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.bc-module-card .bc-module-text {
+  min-width: 0;
+}
+
+.bc-module-card .bc-module-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+}
+
+/* 已完成：图标转为实心强调色，一眼可辨进度 */
+.bc-module-card.is-completed .bc-module-icon {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* 未解锁：整体降权，且不参与悬停抬升 */
+.bc-module-card.is-locked {
+  box-shadow: none;
+  background: color-mix(in srgb, var(--glass) 70%, transparent);
+}
+
+.bc-module-card.is-locked .bc-module-icon {
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  color: var(--text-3);
+}
+
+.bc-module-card.is-locked .ant-card-body {
+  opacity: 0.72;
+}
+
+.bc-module-card.is-locked:hover {
+  border-color: var(--glass-border);
+  box-shadow: none;
+  transform: none;
+}
+
+/* ============================================================
+ * 页面主视觉（企业/项目页）：左侧强调条
+ * ============================================================ */
+.bc-page-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.bc-page-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--accent), transparent 88%);
 }

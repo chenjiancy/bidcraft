@@ -296,6 +296,7 @@ export default function WorkspacePage() {
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       {/* 第一步：选择企业 */}
       <Card
+        className="bc-page-hero"
         title={
           <Title level={4} style={{ margin: 0 }}>
             企业
@@ -387,8 +388,13 @@ export default function WorkspacePage() {
           />
         </Card>
       ) : (
-        <Card>
-          <Text type="secondary">请先选择或创建一个企业，然后管理其项目。</Text>
+        <Card className="bc-page-hero">
+          <Space direction="vertical" size={4}>
+            <Text strong>尚未选择企业</Text>
+            <Text type="secondary">
+              请在上方列表中选择一个企业，或点击「新建企业」创建后管理其项目。
+            </Text>
+          </Space>
         </Card>
       )}
 
