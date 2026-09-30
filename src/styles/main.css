@@ -158,6 +158,16 @@ body,
   -webkit-app-region: drag;
 }
 
+/* 新布局 Header 的拖拽区与按钮区域 */
+.bc-titlebar-region {
+  -webkit-app-region: drag;
+  background: var(--bc-sider-bg);
+}
+
+.bc-titlebar-no-drag {
+  -webkit-app-region: no-drag;
+}
+
 .bc-brand-mark {
   width: 20px;
   height: 20px;
