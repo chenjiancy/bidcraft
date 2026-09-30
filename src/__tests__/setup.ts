@@ -145,6 +145,9 @@ window.bid = {
   shell: {
     openDocxFile: () => Promise.resolve({ opened: true, path: '/mock/docx.docx' }),
   },
+  shell: {
+    openDocxFile: () => Promise.resolve({ opened: true, path: '/mock/docx.docx' }),
+  },
   cred: {
     setApiKey: () => Promise.resolve({ success: true }),
     getApiKey: () => Promise.resolve(null),
