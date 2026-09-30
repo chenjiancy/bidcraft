@@ -265,20 +265,21 @@ app.whenReady().then(() => {
 
   // 侧边车必须就绪后才显示窗口；启动失败则弹窗提示并退出，不展示空壳界面
   startSidecar(useDevRunner, app.getPath('userData'))
-    .catch(async (err: unknown) => {
-      console.error('[main] sidecar 启动失败：', err)
-      const msg = `侧边车启动失败，应用无法运行。\n\n${String(err)}`
-      dialog.showErrorBox('侧边车启动失败', msg)
-      app.quit()
-    })
-    .then(() => {
-      // 侧边车就绪后初始化自动更新，再显示窗口
+    .then((handle) => {
+      // 侧边车就绪：初始化自动更新，注册版本检查 IPC，再显示窗口
       if (mainWindow) initUpdater(mainWindow)
       ipcMain.handle('update:check', () => {
         autoUpdater.checkForUpdates()
         return { ok: true }
       })
+      void handle
       createWindow()
+    })
+    .catch(async (err: unknown) => {
+      console.error('[main] sidecar 启动失败：', err)
+      const msg = `侧边车启动失败，应用无法运行。\n\n${String(err)}`
+      dialog.showErrorBox('侧边车启动失败', msg)
+      app.quit()
     })
 
   app.on('activate', () => {
