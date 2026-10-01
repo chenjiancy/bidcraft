@@ -54,15 +54,15 @@ jobs:
           echo "py_dir=$((uv python dir).Trim())" >> $env:GITHUB_OUTPUT
           echo "cache_dir=$((uv cache dir).Trim())" >> $env:GITHUB_OUTPUT
 
-      # 命中后免重复下载：可重定位 Python、uv wheel 缓存、MinerU 1.2GB 模型
-      - name: Cache uv and MinerU models
+      # 命中后免重复下载：可重定位 Python、uv wheel 缓存
+      # 模型改为从仓库固定 Release（tag models-pdf-extract-kit-v1）下载，无需缓存 modelscope
+      - name: Cache uv
         uses: actions/cache@v4
         with:
           path: |
             ${{ steps.uv-paths.outputs.py_dir }}
             ${{ steps.uv-paths.outputs.cache_dir }}
-            ~/.cache/modelscope
-          key: mineru-3.4.5-py3.12-${{ runner.os }}-v1
+          key: mineru-3.4.5-py3.12-${{ runner.os }}-v2
 
       # PyInstaller 分析 app/main.py 依赖，.venv 必须先 uv sync 完整依赖
       # （历史缺陷：旧流程只 uv venv 空环境，打出的 exe 缺模块）
@@ -74,7 +74,8 @@ jobs:
       - name: Build sidecar exe (PyInstaller -> build-staging/sidecar)
         run: npm run stage:sidecar
 
-      # runner 无 GPU：PyPI 默认 wheel 即 CPU 版 torch；模型从 ModelScope 拉取（有缓存）
+      # runner 无 GPU：PyPI 默认 wheel 即 CPU 版 torch；模型从固定 Release 资产下载
+      # （不走 models_download：master 已膨胀到 ~2.6GB，会让 NSIS 32 位 makensis mmap 失败）
       - name: Build MinerU runtime and pipeline models
         timeout-minutes: 40
         run: npm run stage:mineru

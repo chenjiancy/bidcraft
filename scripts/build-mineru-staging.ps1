@@ -9,16 +9,21 @@
 #   BIDCRAFT_RESOURCES_PATH/mineru/python/python.exe 解释执行 mineru.cli.client；
 #   dataRoot/mineru/mineru.json 指向 models/，MINERU_MODEL_SOURCE=local 离线使用。
 #
-# 本机复用已下载模型（避免重复拉取 1.2GB）：
-#   .\scripts\build-mineru-staging.ps1 `
+# 模型来源（版本锁定，不随 modelscope 仓库 master 漂移）：
+#   本机复用：.\scripts\build-mineru-staging.ps1 `
 #     -LocalModelsSnapshot "$env:USERPROFILE\.cache\modelscope\models\OpenDataLab--PDF-Extract-Kit-1.0\snapshots\master"
+#   CI/无本机快照：从仓库固定 Release（tag models-pdf-extract-kit-v1）下载 zip，SHA256 校验后解压。
+#   注意：不能改用 mineru.cli.models_download 在线拉取——PDF-Extract-Kit-1.0 master 已更新为
+#   3.4.5 新模型集（约 2.6GB），unpacked 超 4GB 会导致 32 位 makensis 打 NSIS 包时 mmap 失败
+#   （v0.2.7 首次 CD 实测翻车）。本快照 1.2GB 已经过 OCR 端到端实测。
 param(
     [string]$StagingRoot = "$PSScriptRoot\..\build-staging",
     [string]$PythonVersion = "3.12",
-    # 指定已存在的 PDF-Extract-Kit snapshot master 目录时直接复制，跳过联网下载
+    # 指定已存在的 PDF-Extract-Kit snapshot master 目录时直接复制
     [string]$LocalModelsSnapshot = "",
-    # 联网下载时的 modelscope 缓存根（CI 用 actions/cache 缓存该目录）
-    [string]$ModelCache = (Join-Path $env:USERPROFILE ".cache\modelscope")
+    # CI 无本机快照时：从 GitHub Release 下载固定版本模型 zip
+    [string]$RemoteModelsUrl = "https://github.com/chenjiancy/bidcraft/releases/download/models-pdf-extract-kit-v1/pdf-extract-kit-1.0-snapshot.zip",
+    [string]$RemoteModelsSha256 = "fa22ae104414aaa9eca410c73d2da3cb3e021c12d5fdc6caa8ece8809880f8f3"
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,7 +32,6 @@ $pyHome = Join-Path $mineruRoot "python"
 $pyExe = Join-Path $pyHome "python.exe"
 $modelsDst = Join-Path $mineruRoot "models"
 $installMarker = Join-Path $pyHome ".mineru-3.4.5.installed"
-$snapshotRel = "models\OpenDataLab--PDF-Extract-Kit-1.0\snapshots\master"
 
 # ---------- 1) 可重定位 Python 运行时 ----------
 if (Test-Path $pyExe) {
@@ -100,17 +104,26 @@ elseif ($LocalModelsSnapshot -ne "") {
     Copy-Item (Join-Path $LocalModelsSnapshot "*") $modelsDst -Recurse -Force
 }
 else {
-    Write-Host "=== [3/3] 从 ModelScope 下载 pipeline 模型（约 1.2GB）===" -ForegroundColor Cyan
-    $env:MINERU_MODEL_SOURCE = "modelscope"
-    $env:MODELSCOPE_CACHE = $ModelCache
-    & $pyExe -m mineru.cli.models_download -s modelscope -m pipeline
-    if ($LASTEXITCODE -ne 0) { throw "模型下载失败" }
-    $snapshot = Join-Path $ModelCache $snapshotRel
-    if (-not (Test-Path (Join-Path $snapshot "models"))) {
-        throw "下载后未找到快照：$snapshot"
+    Write-Host "=== [3/3] 从 GitHub Release 下载固定模型快照（约 1.0GB）===" -ForegroundColor Cyan
+    $zipPath = Join-Path ([IO.Path]::GetTempPath()) "pdf-extract-kit-1.0-snapshot.zip"
+    if (-not (Test-Path $zipPath)) {
+        curl.exe -fSL --retry 3 -o $zipPath $RemoteModelsUrl
+        if ($LASTEXITCODE -ne 0) { throw "模型 zip 下载失败：$RemoteModelsUrl" }
+    }
+    $actual = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+    if ($actual -ne $RemoteModelsSha256.ToLower()) {
+        Remove-Item $zipPath -Force
+        throw "模型 zip SHA256 校验失败：$actual（期望 $RemoteModelsSha256），已删除缓存"
+    }
+    $extractDir = Join-Path ([IO.Path]::GetTempPath()) "pdf-extract-kit-extract"
+    if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force }
+    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+    if (-not (Test-Path (Join-Path $extractDir "models"))) {
+        throw "解压后未找到 models/ 子目录：$extractDir"
     }
     New-Item -ItemType Directory -Force -Path $modelsDst | Out-Null
-    Copy-Item (Join-Path $snapshot "*") $modelsDst -Recurse -Force
+    Copy-Item (Join-Path $extractDir "*") $modelsDst -Recurse -Force
+    Remove-Item $extractDir -Recurse -Force
 }
 
 # ---------- 汇总 ----------
