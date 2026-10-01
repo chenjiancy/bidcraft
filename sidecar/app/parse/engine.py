@@ -12,8 +12,16 @@
   ``<stem>_content_list.json``（非 _v2）、``<stem>_middle.json``（页码坐标/bbox）、
   ``images/``；多源共用 out_dir 时各自独立 ``<stem>/`` 子树。
 
-路径解析：环境变量 ``BIDCRAFT_MINERU_PYTHON`` → 开发期 ``sidecar/.venv-mineru``。
-未安装/版本不符时调用方明确报错（不静默降级）。
+路径解析优先级：
+1. 环境变量 ``BIDCRAFT_MINERU_PYTHON``（显式覆盖）；
+2. 打包后随安装包分发的可重定位运行时
+   ``<BIDCRAFT_RESOURCES_PATH>/mineru/python/python.exe``（PyInstaller 外的
+   python-build-standalone，不依赖用户机器安装 Python）；
+3. 开发期 ``sidecar/.venv-mineru``。
+
+打包模型（``<resources>/mineru/models``，PDF-Extract-Kit 快照内容）存在时，
+在 dataRoot 下生成 ``mineru.json`` 并以 ``MINERU_MODEL_SOURCE=local`` 调用，
+离线可用、不触发联网下载。未安装/版本不符时调用方明确报错（不静默降级）。
 """
 
 from __future__ import annotations
@@ -31,6 +39,16 @@ _SIDECAR_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_VENV = _SIDECAR_ROOT / ".venv-mineru"
 _SUPPORTED_MAJOR = 3
 MINERU_TIMEOUT_SECONDS = 3_600
+
+# Electron main 注入：打包后 process.resourcesPath；未设置表示开发环境
+ENV_RESOURCES_PATH = "BIDCRAFT_RESOURCES_PATH"
+ENV_MINERU_PYTHON = "BIDCRAFT_MINERU_PYTHON"
+ENV_DATA_ROOT = "BIDCRAFT_DATA_ROOT"
+# MinerU 3.4.5 local 模式相关环境变量
+ENV_MODEL_SOURCE = "MINERU_MODEL_SOURCE"
+ENV_TOOLS_CONFIG_JSON = "MINERU_TOOLS_CONFIG_JSON"
+# 与 mineru/models_download_utils.MINERU_CONFIG_VERSION 对齐
+_MINERU_CONFIG_VERSION = "1.3.2"
 
 
 class MinerUError(Exception):
@@ -63,12 +81,46 @@ class RawResult:
     log_lines: list[str] = field(default_factory=list)
 
 
+def _python_exe_name() -> str:
+    return "python.exe" if os.name == "nt" else "bin/python3"
+
+
+def _packaged_root() -> Path | None:
+    """Electron 注入的 resources 目录；未设置返回 None。"""
+    raw = os.environ.get(ENV_RESOURCES_PATH)
+    return Path(raw) if raw else None
+
+
+def _packaged_python() -> Path | None:
+    """打包随包分发的可重定位 Python 运行时（resources/mineru/python）。"""
+    root = _packaged_root()
+    if root is None:
+        return None
+    candidate = root / "mineru" / "python" / _python_exe_name()
+    return candidate if candidate.is_file() else None
+
+
+def _packaged_models_dir() -> Path | None:
+    """随包分发的 pipeline 模型快照目录（resources/mineru/models）。"""
+    root = _packaged_root()
+    if root is None:
+        return None
+    candidate = root / "mineru" / "models"
+    return candidate if candidate.is_dir() else None
+
+
 def mineru_python() -> Path | None:
-    """定位 MinerU 独立 venv 的 python；找不到返回 None。"""
-    env_python = os.environ.get("BIDCRAFT_MINERU_PYTHON")
-    candidates = []
+    """定位 MinerU 运行时 python；找不到返回 None。
+
+    优先级：BIDCRAFT_MINERU_PYTHON 显式覆盖 → 打包 resources 运行时 → 开发 venv。
+    """
+    candidates: list[Path] = []
+    env_python = os.environ.get(ENV_MINERU_PYTHON)
     if env_python:
         candidates.append(Path(env_python))
+    packaged = _packaged_python()
+    if packaged is not None:
+        candidates.append(packaged)
     if os.name == "nt":
         candidates.append(_DEFAULT_VENV / "Scripts" / "python.exe")
     else:
@@ -79,10 +131,56 @@ def mineru_python() -> Path | None:
     return None
 
 
-def _mineru_cli(python: Path) -> Path:
-    scripts = python.parent
-    exe = scripts / ("mineru.exe" if os.name == "nt" else "mineru")
-    return exe
+def _mineru_argv(python: Path) -> list[str]:
+    """MinerU CLI 调用前缀。
+
+    统一走 ``python -m mineru.cli.client``：不依赖 pip 生成的 console 脚本
+    （其 wrapper 在可重定位分发目录中可能失效），开发 venv 与打包运行时同源。
+    """
+    return [str(python), "-m", "mineru.cli.client"]
+
+
+def ensure_packaged_mineru_config() -> Path | None:
+    """内置模型存在时，在 dataRoot 生成 local 模式 mineru.json，返回配置路径。
+
+    - 配置放 dataRoot（安装目录 Program Files 只读，不能放 resources）；
+    - 幂等：目标内容与现状一致时不重写；
+    - 无内置模型或无 dataRoot（非 Electron 调用）时返回 None，保持开发行为。
+    """
+    models_dir = _packaged_models_dir()
+    if models_dir is None:
+        return None
+    data_root = os.environ.get(ENV_DATA_ROOT)
+    if not data_root:
+        return None
+
+    cfg_dir = Path(data_root) / "mineru"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = cfg_dir / "mineru.json"
+    payload = {
+        "config_version": _MINERU_CONFIG_VERSION,
+        "model-source": "local",
+        "models-dir": {"pipeline": str(models_dir)},
+    }
+    existing = None
+    if cfg_path.is_file():
+        try:
+            existing = json.loads(cfg_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = None
+    if existing != payload:
+        cfg_path.write_text(json.dumps(payload, ensure_ascii=False, indent=4), encoding="utf-8")
+    return cfg_path
+
+
+def mineru_child_env() -> dict[str, str]:
+    """MinerU 子进程环境：内置模型走 local 离线模式，否则继承开发期行为。"""
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    cfg_path = ensure_packaged_mineru_config()
+    if cfg_path is not None:
+        env[ENV_MODEL_SOURCE] = "local"
+        env[ENV_TOOLS_CONFIG_JSON] = str(cfg_path)
+    return env
 
 
 async def probe_status(*, timeout: int = 120) -> EngineStatus:
@@ -91,17 +189,16 @@ async def probe_status(*, timeout: int = 120) -> EngineStatus:
     if python is None:
         return EngineStatus(
             available=False,
-            error="未找到 MinerU 环境（sidecar/.venv-mineru 或 BIDCRAFT_MINERU_PYTHON）",
-        )
-    if not _mineru_cli(python).is_file():
-        return EngineStatus(
-            available=False,
-            python_path=str(python),
-            error="MinerU venv 中不存在 mineru 命令，请安装 mineru==3.4.5",
+            error=(
+                "未找到 MinerU 环境（BIDCRAFT_MINERU_PYTHON、"
+                "打包 resources 或 sidecar/.venv-mineru）"
+            ),
         )
 
+    # 直接 python -c 探测可导入性与版本；import mineru 失败会以非零退出暴露，
+    # 不依赖 mineru 命令（console 脚本在可重定位分发目录中可能缺失）
     check = (
-        "import json, importlib.metadata as m, torch; "
+        "import json, importlib.metadata as m, mineru, torch; "
         "print(json.dumps({"
         "'version': m.version('mineru'), "
         "'cuda': bool(torch.cuda.is_available()), "
@@ -115,6 +212,7 @@ async def probe_status(*, timeout: int = 120) -> EngineStatus:
             check,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=mineru_child_env(),
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except (TimeoutError, OSError) as exc:
@@ -161,14 +259,14 @@ async def run_mineru(
     method: auto（默认，文本/OCR 自动分流）/ txt / ocr。
     """
     python = mineru_python()
-    if python is None or not _mineru_cli(python).is_file():
-        raise MinerUUnavailable("MinerU 环境不可用，请先安装 mineru==3.4.5（pipeline）")
+    if python is None:
+        raise MinerUUnavailable("MinerU 环境不可用，请安装 mineru==3.4.5（pipeline）")
     if not input_file.is_file():
         raise MinerUError(f"输入文件不存在：{input_file}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
-        str(_mineru_cli(python)),
+        *_mineru_argv(python),
         "-p",
         str(input_file),
         "-o",
@@ -185,7 +283,7 @@ async def run_mineru(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
-        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        env=mineru_child_env(),
     )
 
     log_lines: list[str] = []

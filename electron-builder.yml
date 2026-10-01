@@ -8,6 +8,20 @@ files:
   - out/**/*
   - package.json
   - resources/**/*
+# 构建前由 scripts/build-sidecar.ps1 与 build-mineru-staging.ps1 生成
+# （build-staging/ 在 builder 输出目录 release/ 之外）：
+# - sidecar/bidcraft-sidecar.exe：PyInstaller 打包的 FastAPI 侧车
+# - mineru/python：可重定位 Python 3.12 + mineru[pipeline] 3.4.5（CPU）
+# - mineru/models：PDF-Extract-Kit-1.0 pipeline 模型（离线 OCR）
+extraResources:
+  - from: build-staging/sidecar
+    to: sidecar
+    filter:
+      - '**/*'
+  - from: build-staging/mineru
+    to: mineru
+    filter:
+      - '**/*'
 win:
   target:
     - target: nsis
@@ -17,6 +31,8 @@ nsis:
   oneClick: true
   perMachine: false
   deleteAppDataOnUninstall: false
+# 内置 Python 运行时 + 模型约 2.1GB，最大 LZMA 压缩把安装包压进 GitHub 2GB 限制
+compression: maximum
 publish:
   provider: github
   owner: chenjiancy

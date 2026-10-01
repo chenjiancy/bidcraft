@@ -267,7 +267,8 @@ app.whenReady().then(() => {
   )
 
   // 侧边车必须就绪后才显示窗口；启动失败则弹窗提示并退出，不展示空壳界面
-  startSidecar(useDevRunner, app.getPath('userData'))
+  // 打包后注入 resourcesPath，sidecar 据此定位随包分发的 MinerU 运行时与模型
+  startSidecar(useDevRunner, app.getPath('userData'), app.isPackaged ? process.resourcesPath : null)
     .then((handle) => {
       // 侧边车就绪：初始化自动更新，注册版本检查 IPC，再显示窗口
       if (mainWindow) initUpdater(mainWindow)

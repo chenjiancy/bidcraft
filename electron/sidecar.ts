@@ -66,11 +66,15 @@ async function waitForHealth(
  * 拉起 Python sidecar（随机端口 + 本地令牌）。
  * - useDevRunner=true：直接运行 .venv 内的 uvicorn（开发 / 未打包运行，
  *   不经 shell/cmd，保证 child.pid 就是真实进程、进程树可整树结束）；
- * - false：PyInstaller exe（打包后，随 1.2 打包链路落地）。
+ * - false：PyInstaller exe（打包后，随安装包 resources 分发）。
+ *
+ * resourcesPath：打包后传入 process.resourcesPath，注入 BIDCRAFT_RESOURCES_PATH，
+ * sidecar 据此定位随包分发的 sidecar exe 同目录资源（MinerU 运行时/模型）。
  */
 export async function startSidecar(
   useDevRunner: boolean,
   dataRoot: string,
+  resourcesPath?: string | null,
 ): Promise<SidecarHandle> {
   stopping = false
   status = 'starting'
@@ -79,11 +83,16 @@ export async function startSidecar(
   const token = randomBytes(24).toString('hex')
   handle = { port, token }
 
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     BIDCRAFT_DATA_ROOT: dataRoot,
     BIDCRAFT_SIDECAR_TOKEN: token,
+    // 打包后 exe 内 main.py __main__ 块据此监听（dev 走 uvicorn CLI --port，读此变量无害）
+    BIDCRAFT_SIDECAR_PORT: String(port),
     PYTHONUNBUFFERED: '1',
+  }
+  if (resourcesPath) {
+    env.BIDCRAFT_RESOURCES_PATH = resourcesPath
   }
 
   if (useDevRunner) {
@@ -97,7 +106,9 @@ export async function startSidecar(
       env,
     })
   } else {
-    const exe = join(process.resourcesPath, 'sidecar', 'bidcraft-sidecar.exe')
+    // resourcesPath 由 main 传入 process.resourcesPath；兜底 process.resourcesPath
+    const resourcesDir = resourcesPath ?? process.resourcesPath
+    const exe = join(resourcesDir, 'sidecar', 'bidcraft-sidecar.exe')
     child = spawn(exe, ['--data-root', dataRoot], { env })
   }
 

@@ -14,11 +14,13 @@ defaults:
 
 env:
   NODE_VERSION: '22'
+  PYTHON_VERSION: '3.12'
 
 jobs:
   release:
     name: Build & Publish
     runs-on: windows-latest
+    timeout-minutes: 90
 
     steps:
       - uses: actions/checkout@v5
@@ -39,27 +41,45 @@ jobs:
       - name: Setup Python (sidecar)
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
           version: latest
 
-      - name: Build sidecar exe
+      - name: Resolve uv cache paths
+        id: uv-paths
         run: |
-          cd sidecar
-          uv venv
-          uv pip install pyinstaller --python .venv\Scripts\python.exe
-          .venv\Scripts\pyinstaller.exe bidcraft-sidecar.spec --noconfirm
-          New-Item -ItemType Directory -Force -Path "../release/sidecar" | Out-Null
-          Copy-Item "dist/bidcraft-sidecar.exe" "../release/sidecar/bidcraft-sidecar.exe" -Force
-          Remove-Item build -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
+          echo "py_dir=$((uv python dir).Trim())" >> $env:GITHUB_OUTPUT
+          echo "cache_dir=$((uv cache dir).Trim())" >> $env:GITHUB_OUTPUT
 
-      - name: Build NSIS installer
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 命中后免重复下载：可重定位 Python、uv wheel 缓存、MinerU 1.2GB 模型
+      - name: Cache uv and MinerU models
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.uv-paths.outputs.py_dir }}
+            ${{ steps.uv-paths.outputs.cache_dir }}
+            ~/.cache/modelscope
+          key: mineru-3.4.5-py3.12-${{ runner.os }}-v1
+
+      # PyInstaller 分析 app/main.py 依赖，.venv 必须先 uv sync 完整依赖
+      # （历史缺陷：旧流程只 uv venv 空环境，打出的 exe 缺模块）
+      - name: Prepare sidecar venv (uv sync + pyinstaller)
+        run: |
+          uv sync --frozen --directory sidecar
+          uv pip install pyinstaller --python sidecar\.venv\Scripts\python.exe
+
+      - name: Build sidecar exe (PyInstaller -> build-staging/sidecar)
+        run: npm run stage:sidecar
+
+      # runner 无 GPU：PyPI 默认 wheel 即 CPU 版 torch；模型从 ModelScope 拉取（有缓存）
+      - name: Build MinerU runtime and pipeline models
+        timeout-minutes: 40
+        run: npm run stage:mineru
+
+      - name: Build NSIS installer (bundles sidecar + MinerU)
         run: npm run dist
 
       - name: Create GitHub Release and upload assets

@@ -23,7 +23,10 @@
     "test:py": "uv --directory sidecar run pytest",
     "test:e2e": "npm run build && playwright test",
     "test:samples": "uv --directory sidecar run pytest tests/golden",
-    "dist": "npm run build && electron-builder --win",
+    "dist": "npm run build && electron-builder --win --publish never",
+    "stage:sidecar": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-sidecar.ps1",
+    "stage:mineru": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-mineru-staging.ps1",
+    "dist:full": "npm run stage:sidecar && npm run stage:mineru && npm run dist",
     "reset:dev": "node scripts/reset-dev.js",
     "prepare": "husky"
   },
