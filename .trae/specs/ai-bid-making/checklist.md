@@ -111,3 +111,21 @@
 - [ ] 大体积样本未打入安装包
 - [ ] electron-updater 自动更新框架已集成（依赖、更新源 GitHub Releases、更新检查/安装逻辑；对应 NFR-7 / architecture.md 第十一章）
 - [ ] dev/prod userData 目录隔离已验证（生产构建走 `BidCraftApp`，与开发环境 `BidCraft-dev` 互不污染；对应 NFR-7 / architecture.md 第十章）
+
+## 发布事故记录
+
+### v0.2.6 坏版本（2026-10-01，标记勿用）
+- **现象**：安装后启动弹窗 `spawn ...resources\sidecar\bidcraft-sidecar.exe ENOENT`
+- **根因**（三层叠加，自 v0.1.0 起所有安装包均存在，此前只在 dev 模式跑未暴露）：
+  1. electron-builder.yml 从未配置 extraResources，CD 把 PyInstaller 产物复制到 builder 输出目录 release/sidecar/ 内，不会被打入安装包
+  2. 旧 cd.yml 只 `uv venv` 未 `uv sync`，即便打包了 exe 也是缺模块的残品
+  3. sidecar main.py 无 `__main__` uvicorn 启动入口，exe 执行完即退；且 PyInstaller --windowed 无重定向时 sys.stdout=None 导致 uvicorn DefaultFormatter 崩溃挂死
+- **教训**：打包链路改动必须以「win-unpacked 直接启动 + 安装包干净机安装运行」为验收，不得以 dev 模式测试代替
+- **修复版本**：v0.2.7（sidecar + MinerU 运行时/模型全量内置，安装包约 1.5GB，离线开箱即用）
+
+### 发布前检查补充项（自 v0.2.7 起每次发版必查）
+- [ ] 本机 `npm run dist` 后直接运行 `release/win-unpacked/BidCraft.exe`（隔离 userData），确认 sidecar 自动拉起、`/api/v1/parse/engine` 探测 available=true
+- [ ] 检查 `release/win-unpacked/resources/` 下 sidecar/bidcraft-sidecar.exe、mineru/python/python.exe、mineru/models 三件套齐全
+- [ ] 用打包后的资源目录实际跑一次 OCR（强制 `-m ocr` 单页），验证内置模型 local 模式可用
+- [ ] 确认安装包体积 < GitHub Release 单文件 2GB 限制
+- [ ] PyInstaller exe 有 `__main__` 入口；windowed 模式 stdout/stderr 兜底（防 sys.stdout=None 挂死）

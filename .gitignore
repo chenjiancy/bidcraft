@@ -20,6 +20,8 @@ venv/
 *.egg-info/
 sidecar/dist/
 sidecar/build/
+# NSIS 打包前的 sidecar exe / MinerU 运行时 / 模型 staging（数 GB，由 scripts/build-*.ps1 生成）
+build-staging/
 
 # ===== 环境/密钥 =====
 .env
