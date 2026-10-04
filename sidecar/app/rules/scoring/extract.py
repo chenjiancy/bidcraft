@@ -39,10 +39,28 @@ def _norm_line(text: str) -> str:
 
 
 def _is_category_line(line: str) -> bool:
-    """评分大类行：含大类关键词 + 分值，且不以编号前缀开头（编号行是评分项）。"""
-    if _ITEM_PREFIX.match(line):
+    """评分大类行：含大类关键词 + 分值。
+
+    - 无编号前缀且命中关键词+分值 → 大类行；
+    - 带编号前缀时（如真实标书常见的"一、商务评分（满分40分）"），
+      需额外含"满分/合计/总计/总分/共…分"的大类总分信号，
+      避免把"技术方案 10分"这类评分项误判为大类。
+    """
+    if not any(k in line for k in _CATEGORY_KEYWORDS):
         return False
-    return any(k in line for k in _CATEGORY_KEYWORDS) and bool(_SCORE_LINE.search(line))
+    if not _SCORE_LINE.search(line):
+        return False
+    if not _ITEM_PREFIX.match(line):
+        return True
+    return bool(re.search(r"(?:满分|合计|总计|总分|共)\s*\d+(?:\.\d+)?\s*分", line))
+
+
+def _clean_category_name(line: str) -> str:
+    """大类行 → 干净的大类名称：去编号前缀、去"（满分40分）"等总分括注。"""
+    s = _ITEM_PREFIX.sub("", line).strip()
+    s = re.sub(r"[（(][^）)]*(?:满分|合计|总计|总分)[^）)]*[）)]\s*$", "", s).strip()
+    s = _SCORE_LINE.sub("", s)
+    return s.strip(" ：:，,。()（）")
 
 
 def _extract_materials(text: str) -> list[str]:
@@ -148,7 +166,7 @@ def extract_score_table(
             if _is_category_line(line):
                 if current_cat is not None:
                     segments.append((current_cat, current_lines, page_idx))
-                current_cat = f"{line.strip()}"
+                current_cat = _clean_category_name(line)
                 current_lines = []
             elif current_cat is not None:
                 current_lines.append(line)
