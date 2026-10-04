@@ -115,6 +115,27 @@ def test_extraction_deterministic_for_fixed_input() -> None:
     assert all(c["anchor_verified"] for c in match["constraints"])
 
 
+def test_snippet_preserves_line_structure_for_scoring() -> None:
+    """snippet 必须保留换行与足够长度：评分提取依赖按行解析（TR-11 集成修复）。"""
+    long_body = "投标保证金条款说明：" + "保证金缴纳与退还规则。" * 25
+    blocks = [
+        {"type": "text", "text": "第一章 投标人须知", "page_idx": 0},
+        {"type": "text", "text": "一、投标保证金", "page_idx": 0},
+        {"type": "text", "text": long_body, "page_idx": 0},
+        {"type": "text", "text": "保证金应当以支票、汇票等形式缴纳。", "page_idx": 0},
+    ]
+    result = extract.run_extraction(
+        _fixture_chapters(),
+        {"招标文件": blocks},
+        selected_keys={"bid_bond"},
+        generated_at="t",
+    )
+    match = next(i for i in result["items"] if i["key"] == "bid_bond")["matches"][0]
+    snippet = match["snippet"]
+    assert "\n" in snippet  # 保留行结构，供评分提取按行识别大类/评分项
+    assert len(snippet) > 240  # 不再截断为 240 字符
+
+
 def test_unselected_item_off_and_missing_item_red_flag() -> None:
     result = extract.run_extraction(
         _fixture_chapters(),

@@ -31,6 +31,39 @@ def _mk_match(snippet: str, chapter: str, stem: str = "tender", page: int = 5):
     }
 
 
+# ---------- TR-11 集成修复：带编号前缀的大类行 ----------
+
+
+def test_prefixed_category_lines_recognized_and_normalized() -> None:
+    """真实标书常见写法"一、商务评分（满分40分）"应识别为大类，且标题行不被当成评分项。"""
+    snippet = (
+        "一、商务评分（满分40分）\n"
+        "1. 企业业绩 20分\n"
+        "2. 人员力量 10分\n"
+        "3. 财务状况 10分\n"
+        "二、技术评分（满分60分）\n"
+        "1. 监理大纲 30分\n"
+        "2. 技术方案 30分\n"
+    )
+    payload = scoring_extract.extract_score_table(
+        [_mk_match(snippet, "第三章 评标办法")], generated_at="t"
+    )
+    cats = payload["categories"]
+    assert len(cats) == 2
+    assert cats[0]["name"] == "商务评分"
+    assert cats[1]["name"] == "技术评分"
+    # 大类标题行不得变成评分项；合计 100
+    assert payload["total_score_check"]["actual"] == 100.0
+    assert payload["total_score_check"]["ok"] is True
+    assert all("满分" not in item["name"] for c in cats for item in c["items"])
+    # "技术方案 30分" 虽是编号行且含"技术"，但无总分信号，不得误判为大类
+    tech_cat = cats[1]
+    assert [i["name"] for i in tech_cat["items"]] == [
+        "监理大纲",
+        "技术方案",
+    ]
+
+
 # ---------- TR-11.3 门槛条件 ----------
 
 

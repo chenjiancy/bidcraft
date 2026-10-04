@@ -20,7 +20,7 @@ from app.rules import terms as terms_mod
 from app.rules.anchor import verify_anchor
 from app.rules.catalog import RULES, RULES_VERSION, find_constraints
 
-_SNIPPET_LEN = 240
+_SNIPPET_LEN = 20_000  # 保留完整子树文本（评分提取按行解析，截断会导致评分表为空）
 _SUBTREE_CHAR_CAP = 20_000
 _DETECT_PAGE_SPAN = 3  # 术语判定用首 3 页文本
 
@@ -205,7 +205,7 @@ def run_extraction(
                                     "detail": f"约束未能在原文锚定：{c.text[:80]}",
                                 }
                             )
-                snippet = re.sub(r"\s+", " ", text).strip()[:_SNIPPET_LEN]
+                snippet = text.strip()[:_SNIPPET_LEN]  # 保留换行结构，不压空白
                 matches.append(
                     {
                         "source": stem,

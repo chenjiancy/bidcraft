@@ -194,6 +194,43 @@ def test_extract_coarse_pipeline(
     assert kd["history"][0]["doc_type"] == "招标"
 
 
+# ---------- TR-11 集成修复：精准门禁（有评分章节但提取为空 → 中断） ----------
+
+
+def test_score_extract_gate_blocks_when_matches_yield_no_categories(
+    db_client: TestClient, project: tuple[str, str]
+) -> None:
+    """粗分找到了评分章节，但结构化提取无任何大类/评分项时，必须报错且不落空表。"""
+    eid, pid = project
+    extract_path = parse_service.paths.extract_list_path(eid, pid)
+    extract_path.parent.mkdir(parents=True, exist_ok=True)
+    extract_path.write_text(
+        json.dumps(
+            {
+                "items": [
+                    {
+                        "key": "tech_score",
+                        "matches": [
+                            {
+                                "chapter_path": "第三章 评标办法",
+                                "source": "tender",
+                                "snippet": "本章规定评标办法的通用原则，不设具体分值。",
+                                "anchor": {"page_idx": 3},
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(parse_service.ParseError, match="评分"):
+        asyncio.run(parse_service._run_score_extract(eid, pid))
+    assert not parse_service.paths.score_table_path(eid, pid).is_file()
+
+
 # ---------- TR-10.9：双通道不调 LLM ----------
 
 

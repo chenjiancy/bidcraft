@@ -1077,6 +1077,13 @@ async def _run_score_extract(enterprise_id: str, project_id: str) -> dict[str, A
         raise ParseError(
             f"score_table.json 未通过 Schema 硬校验（{len(errors)} 条错误），需修正后重试"
         )
+
+    # 精准门禁：已定位到评分章节但提取结果为空（解析器失效），不允许静默落空表
+    if score_matches and not payload.get("categories"):
+        raise ParseError(
+            "已定位到评分章节但结构化提取结果为空（无评分大类/评分项），"
+            "请核对评分章节原文后重试 score:extract"
+        )
     _write_json(paths.score_table_path(enterprise_id, project_id), payload)
 
     total = payload["total_score_check"]["actual"]
