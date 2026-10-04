@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -69,3 +70,47 @@ class StubOcr(OcrBackend):
 
     def recognize(self, image_bytes: bytes) -> OcrResult:
         return OcrResult(text=self._fixed_text, fields={})
+
+
+class RapidOcrBackend(OcrBackend):
+    """RapidOCR（PP-OCRv6 small，ONNX Runtime）进程内 OCR 后端。
+
+    TS-4 决策（2026-10）：素材归档为高频交互，选用进程内、CPU 秒级、
+    模型随包内置（约 32MB）的 RapidOCR，而非 MinerU 子进程。
+
+    Args:
+        engine: 注入用引擎（测试边界）；生产使用时惰性构建 ``RapidOCR``。
+        min_score: 文本行置信度下限，低于该值的行丢弃。
+    """
+
+    def __init__(
+        self,
+        engine: Any = None,
+        *,
+        min_score: float = 0.5,
+    ) -> None:
+        self._engine = engine
+        self._min_score = min_score
+
+    def _get_engine(self) -> Any:
+        if self._engine is None:
+            from rapidocr import RapidOCR
+
+            self._engine = RapidOCR()
+        return self._engine
+
+    def recognize(self, image_bytes: bytes) -> OcrResult:
+        output = self._get_engine()(image_bytes)
+        lines: list[str] = []
+        txts = getattr(output, "txts", None) or ()
+        scores = getattr(output, "scores", None) or ()
+        for text, score in zip(txts, scores, strict=False):
+            if score is not None and float(score) < self._min_score:
+                continue
+            lines.append(str(text))
+        return OcrResult(text="\n".join(lines), fields={})
+
+
+def build_default_ocr() -> OcrBackend:
+    """归档管线默认 OCR 后端工厂（API 层统一经此注入，便于切换/测试）。"""
+    return RapidOcrBackend()

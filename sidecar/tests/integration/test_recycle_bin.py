@@ -47,6 +47,57 @@ def db_client(data_root: Path) -> Any:
 
 
 # ======================================================================
+# OCR：默认后端工厂（CI 中替换为 StubOcr，不加载真实模型）
+# ======================================================================
+
+
+@pytest.fixture(autouse=True)
+def _stub_default_ocr(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.api import materials as materials_api
+    from app.materials.ocr import StubOcr
+
+    monkeypatch.setattr(materials_api, "build_default_ocr", lambda: StubOcr(), raising=False)
+
+
+def test_from_path_uses_default_ocr_factory(
+    db_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """归档 API 必须通过默认后端工厂注入真实 OCR（修复 ocr_text 恒为空）。"""
+    from app.api import materials as materials_api
+    from app.materials.ocr import OcrBackend, OcrResult
+    from app.parse import paths as path_utils
+
+    ent = db_client.post("/api/v1/enterprises", json={"name": "企业OCR", "agent": "代理人"}).json()
+    eid = ent["id"]
+    path_utils.init_materials_dirs(eid)
+    mat_dir = path_utils.materials_category_dir(eid, "qualification")
+    file_path = mat_dir / "c.png"
+    file_path.write_bytes(
+        b"\x89PNG\r\n\x1a\n"
+        b"\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde"
+        b"\x00\x00\x00\x0cIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x01\x00\x18\xdd\x8d\x4b"
+        b"\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+
+    used: list[bytes] = []
+
+    class _RecordingOcr(OcrBackend):
+        def recognize(self, image_bytes: bytes) -> OcrResult:
+            used.append(image_bytes)
+            return OcrResult(text="工厂注入的识别文本")
+
+    monkeypatch.setattr(materials_api, "build_default_ocr", lambda: _RecordingOcr())
+
+    resp = db_client.post(
+        f"/api/v1/enterprises/{eid}/materials/from_path",
+        json={"file_paths": [str(file_path)], "category": "qualification", "name": "证件"},
+    )
+    assert resp.status_code == 201, resp.text
+    assert used  # 默认后端确实被调用
+    assert resp.json()[0]["ocr_text"] == "工厂注入的识别文本"
+
+
+# ======================================================================
 # TR-21.1：删除项目进入回收站
 # ======================================================================
 

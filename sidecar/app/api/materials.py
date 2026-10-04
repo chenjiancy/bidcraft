@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import require_sidecar_token
 from app.db.deps import get_session
+from app.materials.ocr import build_default_ocr
 from app.materials.service import ArchivalError, archive_material
 from app.models.material import Material
 from app.parse import paths as path_utils
@@ -114,6 +115,7 @@ def create_material(
             enterprise_id,
             original_path=inbox_dest,
             category=body.category,
+            ocr_backend=build_default_ocr(),
             custom_name=body.name,
             custom_filename=body.filename,
             valid_until=body.valid_until,
@@ -176,6 +178,7 @@ def create_material_from_path(
                 enterprise_id,
                 original_path=original_path,
                 category=body.category,
+                ocr_backend=build_default_ocr(),
                 custom_name=body.name,
                 custom_filename=body.filename,
                 valid_until=body.valid_until,
@@ -213,6 +216,7 @@ def create_project_material_from_path(
                 project_id=project_id,
                 original_path=original_path,
                 category=body.category,
+                ocr_backend=build_default_ocr(),
                 custom_name=body.name,
                 custom_filename=body.filename,
                 valid_until=body.valid_until,
@@ -353,6 +357,7 @@ def create_project_material(
             project_id=project_id,
             original_path=inbox_dest,
             category=body.category,
+            ocr_backend=build_default_ocr(),
             custom_name=body.name,
             custom_filename=body.filename,
             valid_until=body.valid_until,
