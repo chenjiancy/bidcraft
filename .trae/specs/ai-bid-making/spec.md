@@ -484,4 +484,4 @@
 - [ ] **TS-1**：多模型配置与自动切换机制（含读图、生图模型）——待软件跑通后的功能迭代阶段再讨论（见 FR-2 第 5 点）。
 - [ ] **TS-2**：MinerU 版本锁定——3.x → 4.0 有 breaking change，本期锁定具体版本待开发时确定（见 FR-2 第 5 点）。
 - [ ] **TS-3**：Word→PDF 转换保真度——LibreOffice headless 与本机 Word（docx2pdf）两条路径，待开发时以真实样本比对验证并选定（见 tech-selection.md R2）。
-- [ ] **TS-4**：素材归档 OCR 复用策略——复用 MinerU 内置 OCR 还是独立 PaddleOCR，待开发时验证（见 tech-selection.md 3.2）。
+- [x] **TS-4**：素材归档 OCR 后端策略——**已关闭（2026-10-04）**：经 8 份真实业务证件实测（企业资质/营业执照/三体系/注册证/职称证/身份证/荣誉/4 页扫描合同 PDF），确定默认后端为 **RapidOCR PP-OCRv6 small（ONNX Runtime，模型约 32MB 随包，CPU 约 1~3 秒/页）**，不复用 MinerU 子进程；MinerU 继续专注招标文件长文档解析。遗留的扫描水印噪声、印章误识、多专业断行问题另立任务（见 checklist 技术决策记录）。

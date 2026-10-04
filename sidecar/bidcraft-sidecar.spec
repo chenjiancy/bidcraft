@@ -7,17 +7,29 @@ PyInstaller spec：将 sidecar/FastAPI 应用打包为独立 exe。
 
 import os
 
+from PyInstaller.utils.hooks import collect_all
+
 block_cipher = None
+
+# RapidOCR：收集包内 ONNX 模型、config.yaml/default_models.yaml 等数据与子模块
+_rapid_datas, _rapid_binaries, _rapid_hidden = collect_all('rapidocr')
 
 a = Analysis(
     ['app/main.py'],
     pathex=[],
-    binaries=[],
+    binaries=_rapid_binaries,
     datas=[
         ('app/db/alembic', 'app/db/alembic'),
         ('alembic.ini', '.'),
-    ],
+    ]
+    + _rapid_datas,
     hiddenimports=[
+        'rapidocr',
+        'onnxruntime',
+        'cv2',
+    ]
+    + _rapid_hidden
+    + [
         'uvicorn.loops.auto',
         'sqlalchemy.dialects.sqlite',
         'docxtpl',
