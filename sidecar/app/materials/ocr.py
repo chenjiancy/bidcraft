@@ -114,3 +114,55 @@ class RapidOcrBackend(OcrBackend):
 def build_default_ocr() -> OcrBackend:
     """归档管线默认 OCR 后端工厂（API 层统一经此注入，便于切换/测试）。"""
     return RapidOcrBackend()
+
+
+def strip_watermark_lines(
+    pages_text: list[str],
+    *,
+    min_repeat_pages: int = 2,
+    max_line_len: int = 20,
+) -> str:
+    """跨页重复短行（扫描水印/页眉）过滤（FT-1）。
+
+    扫描软件水印（如「汉王扫描王」）和页眉行在每页重复出现，
+    混入 ocr_text 后干扰命名提取和 FTS5 检索。此函数按跨页频率
+    识别并剥离这类行。
+
+    Args:
+        pages_text: 每页 OCR 文本列表（元素为一页的完整文本）。
+        min_repeat_pages: 触发剥离的最少出现页数（默认 2）。
+        max_line_len: 剥离的最大行长度（超过则视为正常内容保留）。
+
+    Returns:
+        过滤后的合并文本（页间用空行分隔）。
+    """
+    if not pages_text:
+        return ""
+
+    # 按页拆行，归一化后统计跨页出现次数（每页最多计 1 次）
+    page_lines: list[list[str]] = []
+    line_page_count: dict[str, int] = {}
+
+    for page_text in pages_text:
+        lines = page_text.split("\n")
+        page_lines.append(lines)
+        seen_on_page: set[str] = set()
+        for line in lines:
+            norm = line.strip()
+            if norm and norm not in seen_on_page:
+                seen_on_page.add(norm)
+                line_page_count[norm] = line_page_count.get(norm, 0) + 1
+
+    # 标记需剥离的行：跨页重复且短
+    stripped: set[str] = set()
+    for norm, count in line_page_count.items():
+        if count >= min_repeat_pages and len(norm) <= max_line_len:
+            stripped.add(norm)
+
+    # 输出：跳过被标记的行
+    result_pages: list[str] = []
+    for lines in page_lines:
+        kept = [line for line in lines if line.strip() not in stripped]
+        result_pages.append("\n".join(kept))
+
+    return "\n\n".join(result_pages)
