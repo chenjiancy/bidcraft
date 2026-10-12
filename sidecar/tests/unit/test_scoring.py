@@ -164,6 +164,47 @@ def test_schema_invalid_marks_flag_and_errors():
     assert errors
 
 
+# ---------- FT-6：空内容评分章节（公告声明行/纯流程节）不静默，红标披露 ----------
+
+
+def test_ft6_version_bumped():
+    assert scoring_extract.SCORING_VERSION == "1.1.0"
+
+
+def test_ft6_empty_snippet_match_red_flagged_but_real_match_still_extracts():
+    """公告行"评标办法：综合评分法"（空 snippet）+ 真实评审章 → 正常产出 + 空章红标。
+
+    真实证据：和县老旧小区走查样本 tech_score 唯一命中是采购公告内的空声明行，
+    真正评分表在「（六）评审」章。
+    """
+    empty_decl = _mk_match("", "第一章采购公告 / 7.评标办法：综合评分法", page=2)
+    real = _mk_match(
+        "商务评分 40分\n1. 企业业绩 40分 提供业绩证明\n技术评分 60分\n1. 监理大纲 60分",
+        "第七章附件 / （六）评审",
+        page=11,
+    )
+    payload = scoring_extract.extract_score_table([empty_decl, real], generated_at="t")
+    assert payload["categories"]
+    assert payload["total_score_check"]["ok"] is True
+    empty_flags = [f for f in payload["red_flags"] if f["type"] == "score_section_empty"]
+    assert len(empty_flags) == 1
+    assert "评标办法" in empty_flags[0]["source_chapter"]
+
+
+def test_ft6_all_empty_matches_only_red_flags_no_categories():
+    """全部评分章节均无评分内容 → 不产 category，逐章红标（service 层硬门禁据此阻断）。"""
+    payload = scoring_extract.extract_score_table(
+        [
+            _mk_match("", "第七章 / 1.评标办法"),
+            _mk_match("评审小组按程序评审，无分值表。", "第七章 / 2.评审标准"),
+        ],
+        generated_at="t",
+    )
+    assert payload["categories"] == []
+    empty_flags = [f for f in payload["red_flags"] if f["type"] == "score_section_empty"]
+    assert len(empty_flags) == 2
+
+
 def test_schema_rejects_bad_threshold_kind():
     payload = {
         "version": 1,

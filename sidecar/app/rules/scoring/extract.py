@@ -16,7 +16,7 @@ from typing import Any
 
 from app.rules.scoring import thresholds as thresholds_mod
 
-SCORING_VERSION = "1.0.0"
+SCORING_VERSION = "1.1.0"
 
 # 评分大类识别：商务/技术/价格（资信）等
 _CATEGORY_KEYWORDS = ("商务", "技术", "价格", "资信", "报价")
@@ -158,6 +158,25 @@ def extract_score_table(
         page_idx = int(anchor.get("page_idx", 0))
 
         lines = snippet.splitlines()
+
+        # FT-6：章节标题命中但无任何分值行（如采购公告内"评标办法：综合评分法"
+        # 声明行、纯评审流程节）——不产出空大类，逐章红标披露；
+        # 全部章节均如此时 service 层精准门禁（PR #56）据此阻断状态机升级。
+        if not _SCORE_LINE.search(snippet):
+            red_flags.append(
+                {
+                    "type": "score_section_empty",
+                    "category": "",
+                    "item": "",
+                    "source": source_stem,
+                    "source_chapter": chapter_path,
+                    "detail": (
+                        f"评分相关章节未包含任何分值行，无法提取评分项：{chapter_path}"
+                        "（可能是公告声明行/纯流程节，或评分表为图片未识别，需人工核对）"
+                    ),
+                }
+            )
+            continue
         # 找大类段：含大类关键词+分值的行作为大类标题，其后到下一个大类前的行属于该类
         current_cat: str | None = None
         current_lines: list[str] = []
