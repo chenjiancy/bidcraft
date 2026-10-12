@@ -10,6 +10,22 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+# ---------- FT-3：印章/签名噪声字符表 ----------
+
+_SEAL_NOISE_CHARS = frozenset("〇○●◐◑◒◓◔◕★☆✡✦✧◇◆■□▢▣▤▥▦▧▨▩▪▫")
+
+
+def is_seal_noise_line(text: str) -> bool:
+    """判断一行是否由印章/签名误识产生的纯噪声字符组成（FT-3）。
+
+    印章圆框、手写签名笔画常被 OCR 误识为几何符号（〇○●★☆ 等），
+    此类行全部由噪声字符构成时直接丢弃，不受置信度影响。
+    """
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return all(ch in _SEAL_NOISE_CHARS for ch in stripped)
+
 
 @dataclass
 class OcrResult:
@@ -81,6 +97,9 @@ class RapidOcrBackend(OcrBackend):
     Args:
         engine: 注入用引擎（测试边界）；生产使用时惰性构建 ``RapidOCR``。
         min_score: 文本行置信度下限，低于该值的行丢弃。
+        short_line_max_len: 短行长度上限（≤此值视为短行），印章/签名噪声
+            常产生 1~2 字碎片，对短行适用更高置信度阈值。
+        short_line_min_score: 短行置信度下限，低于此值的短行丢弃（FT-3）。
     """
 
     def __init__(
@@ -88,9 +107,13 @@ class RapidOcrBackend(OcrBackend):
         engine: Any = None,
         *,
         min_score: float = 0.5,
+        short_line_max_len: int = 2,
+        short_line_min_score: float = 0.7,
     ) -> None:
         self._engine = engine
         self._min_score = min_score
+        self._short_line_max_len = short_line_max_len
+        self._short_line_min_score = short_line_min_score
 
     def _get_engine(self) -> Any:
         if self._engine is None:
@@ -105,9 +128,20 @@ class RapidOcrBackend(OcrBackend):
         txts = getattr(output, "txts", None) or ()
         scores = getattr(output, "scores", None) or ()
         for text, score in zip(txts, scores, strict=False):
-            if score is not None and float(score) < self._min_score:
+            text_str = str(text)
+            # FT-3：印章/签名噪声字符行直接丢弃（不受置信度影响）
+            if is_seal_noise_line(text_str):
                 continue
-            lines.append(str(text))
+            stripped = text_str.strip()
+            if score is not None:
+                score_val = float(score)
+                # FT-3：短行（≤2字）适用更高置信度阈值
+                if len(stripped) <= self._short_line_max_len:
+                    if score_val < self._short_line_min_score:
+                        continue
+                elif score_val < self._min_score:
+                    continue
+            lines.append(text_str)
         return OcrResult(text="\n".join(lines), fields={})
 
 
