@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.materials.dictionary import load_keywords, save_keywords
 from app.materials.imaging import pdf_to_pngs, word_to_pdf
 from app.materials.naming import generate_filename
-from app.materials.ocr import OcrBackend, OcrResult, StubOcr
+from app.materials.ocr import OcrBackend, OcrResult, StubOcr, merge_continuation_lines
 from app.models.material import VALID_CATEGORIES, Material
 from app.parse import paths as path_utils
 from app.repositories.base import Scope
@@ -100,7 +100,7 @@ def archive_material(
     for img_bytes in image_bytes_list:
         result: OcrResult = ocr.recognize(img_bytes)
         combined_ocr.append(result.text)
-    ocr_text = "\n\n".join(combined_ocr)
+    ocr_text = merge_continuation_lines("\n\n".join(combined_ocr))
 
     # Step 3: 命名
     name_fields = fields or {}
