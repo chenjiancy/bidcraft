@@ -205,6 +205,57 @@ def test_ft6_all_empty_matches_only_red_flags_no_categories():
     assert len(empty_flags) == 2
 
 
+# ---------- FT-5：多分值评分行取满分值而非首值 ----------
+
+
+def test_ft5_multi_score_line_takes_max_not_first() -> None:
+    """「每项5分，满分20分」应取 20（满分值），非首值 5。"""
+    snippet = "技术评分 100分\n1. 技术方案 每项5分，满分20分\n2. 监理大纲 80分"
+    payload = scoring_extract.extract_score_table(
+        [_mk_match(snippet, "第三章 评标办法")], generated_at="t"
+    )
+    items = payload["categories"][0]["items"]
+    target = next(i for i in items if "技术方案" in i["name"])
+    assert target["score"] == 20.0
+
+
+def test_ft5_multi_score_line_variants() -> None:
+    """满分/共/总计/合计 后的数值应被取为评分项分值。"""
+    cases = [
+        ("1. 业绩评分 每项5分，满分20分", 20.0),
+        ("1. 业绩评分 每项5分，共20分", 20.0),
+        ("1. 业绩评分 每项5分，总计20分", 20.0),
+        ("1. 业绩评分 每项5分，合计20分", 20.0),
+    ]
+    for line, expected in cases:
+        snippet = f"商务评分 40分\n{line}"
+        payload = scoring_extract.extract_score_table(
+            [_mk_match(snippet, "第三章")], generated_at="t"
+        )
+        items = payload["categories"][0]["items"]
+        assert items[0]["score"] == expected, f"Failed for: {line}"
+
+
+def test_ft5_simple_score_unchanged() -> None:
+    """简单行「企业业绩 20分」不受 FT-5 改动影响，仍取 20。"""
+    snippet = "商务评分 40分\n1. 企业业绩 20分\n2. 人员力量 20分"
+    payload = scoring_extract.extract_score_table([_mk_match(snippet, "第三章")], generated_at="t")
+    items = payload["categories"][0]["items"]
+    assert items[0]["score"] == 20.0
+    assert items[1]["score"] == 20.0
+
+
+def test_ft5_name_excludes_full_score_marker() -> None:
+    """满分标记不应残留在评分项名称中。"""
+    snippet = "技术评分 100分\n1. 技术方案评分 每项5分，满分20分\n2. 其他 80分"
+    payload = scoring_extract.extract_score_table([_mk_match(snippet, "第三章")], generated_at="t")
+    items = payload["categories"][0]["items"]
+    name = items[0]["name"]
+    assert "满分" not in name
+    assert "每项" not in name
+    assert "技术方案" in name
+
+
 def test_schema_rejects_bad_threshold_kind():
     payload = {
         "version": 1,
