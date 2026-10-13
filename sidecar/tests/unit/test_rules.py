@@ -215,6 +215,259 @@ def test_nature_annotation_business_tech_general() -> None:
     assert {r.section_id for r in records} == {"ch5", "ch5.1", "ch5.2", "ch5.3"}
 
 
+# ---------- FT-6：评分标题关键词扩充（评审/评审标准类真实标题） ----------
+
+
+def test_ft6_score_keywords_and_exact_keywords_extended() -> None:
+    """真实监理采购文件标题实证：评审办法/评审标准/详细评审/商务评审 + 裸"评审"精确匹配。"""
+    by_key = {r.key: r for r in catalog.RULES}
+    tech = by_key["tech_score"]
+    biz = by_key["business_score"]
+    for kw in (
+        "评审办法",
+        "评审方法",
+        "评审标准",
+        "评审与磋商",
+        "评审因素",
+        "评分细则",
+        "详细评审",
+    ):
+        assert kw in tech.keywords, f"tech_score 缺关键词：{kw}"
+    for kw in ("商务评审", "商务部分评审"):
+        assert kw in biz.keywords, f"business_score 缺关键词：{kw}"
+    # 裸"评审"只允许精确匹配，不得作为子串关键词（防"评审小组/初步评审"误命中）
+    assert "评审" not in tech.keywords
+    assert "评审" in tech.exact_keywords
+    # 规则库版本随规则扩充升级
+    assert catalog.RULES_VERSION == "1.1.0"
+
+
+def _ft6_chapters() -> dict[str, Any]:
+    """真实结构缩影：第七章附件→（六）评审（裸标题，含评分正文）。"""
+    return {
+        "sources": [
+            {
+                "source_stem": "采购文件",
+                "chapters": [
+                    {
+                        "id": "ch7",
+                        "seq": 7,
+                        "number": "第七章",
+                        "title": "附件",
+                        "level": 1,
+                        "start_page": 11,
+                        "end_page": 17,
+                        "anchor": {"page_idx": 11, "bbox": None},
+                        "children": [
+                            {
+                                "id": "ch7.6",
+                                "seq": 6,
+                                "number": "（六）",
+                                "title": "评审",
+                                "level": 3,
+                                "start_page": 11,
+                                "end_page": 17,
+                                "anchor": {"page_idx": 11, "bbox": None},
+                                "children": [],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+
+
+def _ft6_blocks_review() -> list[dict[str, Any]]:
+    return [
+        {"type": "text", "text": "第七章 附件", "page_idx": 11},
+        {"type": "text", "text": "（六）评审", "page_idx": 11},
+        {"type": "text", "text": "25、评审", "page_idx": 11},
+        {"type": "text", "text": "由评审小组采用综合评分法评审（满分100分）。", "page_idx": 12},
+        {"type": "text", "text": "商务评分 40分", "page_idx": 12},
+        {"type": "text", "text": "1. 企业业绩 20分 提供业绩证明、合同复印件", "page_idx": 12},
+        {"type": "text", "text": "2. 人员力量 20分 提供职称证书", "page_idx": 12},
+        {"type": "text", "text": "技术评分 60分", "page_idx": 13},
+        {"type": "text", "text": "1. 监理大纲 30分 提供监理大纲", "page_idx": 13},
+        {"type": "text", "text": "2. 技术方案 30分", "page_idx": 13},
+    ]
+
+
+def test_ft6_bare_review_title_matches_tech_score_exactly() -> None:
+    """竞争性磋商文件「（六）评审」裸标题经 exact_keywords 命中（4 个和县真实样本实证）。"""
+    result = extract.run_extraction(
+        _ft6_chapters(),
+        {"采购文件": _ft6_blocks_review()},
+        selected_keys={"tech_score", "business_score"},
+        generated_at="t",
+    )
+    tech = next(i for i in result["items"] if i["key"] == "tech_score")
+    assert tech["status"] == "found"
+    assert tech["matches"][0]["heading"] == "（六）评审"
+    snippet = tech["matches"][0]["snippet"]
+    assert "综合评分法" in snippet and "监理大纲 30分" in snippet
+
+
+def test_ft6_bare_review_substring_no_false_positive() -> None:
+    """含"评审"但非裸标题（初步评审/评审小组类）不得经 exact 命中。"""
+    chapters = {
+        "sources": [
+            {
+                "source_stem": "采购文件",
+                "chapters": [
+                    {
+                        "id": "ch1",
+                        "seq": 1,
+                        "number": "3.1",
+                        "title": "初步评审",
+                        "level": 3,
+                        "start_page": 20,
+                        "end_page": 20,
+                        "anchor": {"page_idx": 20, "bbox": None},
+                        "children": [],
+                    }
+                ],
+            }
+        ]
+    }
+    blocks = [
+        {"type": "text", "text": "3.1 初步评审", "page_idx": 20},
+        {"type": "text", "text": "评审小组按照初步评审标准审查。", "page_idx": 20},
+    ]
+    result = extract.run_extraction(
+        chapters,
+        {"采购文件": blocks},
+        selected_keys={"tech_score"},
+        generated_at="t",
+    )
+    tech = next(i for i in result["items"] if i["key"] == "tech_score")
+    assert tech["status"] == "missing"
+    assert tech["matches"] == []
+
+
+def test_ft6_review_standard_and_business_review_titles_match() -> None:
+    """「2.评审标准」命中 tech_score；「2.3 商务评审」命中 business_score。"""
+    chapters = {
+        "sources": [
+            {
+                "source_stem": "招标文件",
+                "chapters": [
+                    {
+                        "id": "ch7",
+                        "seq": 7,
+                        "number": "第七章",
+                        "title": "评标办法（综合评分法）",
+                        "level": 1,
+                        "start_page": 30,
+                        "end_page": 35,
+                        "anchor": {"page_idx": 30, "bbox": None},
+                        "children": [
+                            {
+                                "id": "ch7.2",
+                                "seq": 2,
+                                "number": "2.",
+                                "title": "评审标准",
+                                "level": 3,
+                                "start_page": 31,
+                                "end_page": 34,
+                                "anchor": {"page_idx": 31, "bbox": None},
+                                "children": [
+                                    {
+                                        "id": "ch7.2.3",
+                                        "seq": 3,
+                                        "number": "2.3",
+                                        "title": "商务评审",
+                                        "level": 3,
+                                        "start_page": 33,
+                                        "end_page": 34,
+                                        "anchor": {"page_idx": 33, "bbox": None},
+                                        "children": [],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    blocks = [
+        {"type": "text", "text": "第七章 评标办法（综合评分法）", "page_idx": 30},
+        {"type": "text", "text": "2.评审标准", "page_idx": 31},
+        {"type": "text", "text": "详细评审按评分因素打分。", "page_idx": 31},
+        {"type": "text", "text": "2.3 商务评审", "page_idx": 33},
+        {"type": "text", "text": "商务评分合计40分。", "page_idx": 33},
+    ]
+    result = extract.run_extraction(
+        chapters,
+        {"招标文件": blocks},
+        selected_keys={"tech_score", "business_score"},
+        generated_at="t",
+    )
+    tech = next(i for i in result["items"] if i["key"] == "tech_score")
+    biz = next(i for i in result["items"] if i["key"] == "business_score")
+    # 父章"评标办法"已覆盖"2.评审标准"子树 → 子节被去重，只保留祖先
+    tech_headings = {m["heading"] for m in tech["matches"]}
+    assert tech_headings == {"第七章评标办法（综合评分法）"}
+    # business_score 未命中父章，"2.3 商务评审"子节独立保留
+    assert biz["status"] == "found"
+    assert biz["matches"][0]["heading"] == "2.3商务评审"
+
+
+def test_ft6_ancestor_match_suppresses_descendant_duplicates() -> None:
+    """同 key 命中父子章节时只保留祖先（防子树内容重复导致评分翻倍）。
+
+    真实结构：玉带河样本"第七章 评标办法（综合评分法）"章内含子节"1.评标办法"。
+    """
+    chapters = {
+        "sources": [
+            {
+                "source_stem": "招标文件",
+                "chapters": [
+                    {
+                        "id": "ch7",
+                        "seq": 7,
+                        "number": "第七章",
+                        "title": "评标办法（综合评分法）",
+                        "level": 1,
+                        "start_page": 30,
+                        "end_page": 35,
+                        "anchor": {"page_idx": 30, "bbox": None},
+                        "children": [
+                            {
+                                "id": "ch7.1",
+                                "seq": 1,
+                                "number": "1.",
+                                "title": "评标办法",
+                                "level": 3,
+                                "start_page": 30,
+                                "end_page": 32,
+                                "anchor": {"page_idx": 30, "bbox": None},
+                                "children": [],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    blocks = [
+        {"type": "text", "text": "第七章 评标办法（综合评分法）", "page_idx": 30},
+        {"type": "text", "text": "1.评标办法", "page_idx": 30},
+        {"type": "text", "text": "商务评分 40分", "page_idx": 30},
+        {"type": "text", "text": "1. 企业业绩 40分", "page_idx": 31},
+    ]
+    result = extract.run_extraction(
+        chapters,
+        {"招标文件": blocks},
+        selected_keys={"tech_score"},
+        generated_at="t",
+    )
+    tech = next(i for i in result["items"] if i["key"] == "tech_score")
+    assert len(tech["matches"]) == 1
+    assert tech["matches"][0]["heading"] == "第七章评标办法（综合评分法）"
+
+
 def test_extraction_contains_sections_nature() -> None:
     result = extract.run_extraction(
         _fixture_chapters(),

@@ -164,6 +164,98 @@ def test_schema_invalid_marks_flag_and_errors():
     assert errors
 
 
+# ---------- FT-6：空内容评分章节（公告声明行/纯流程节）不静默，红标披露 ----------
+
+
+def test_ft6_version_bumped():
+    assert scoring_extract.SCORING_VERSION == "1.1.0"
+
+
+def test_ft6_empty_snippet_match_red_flagged_but_real_match_still_extracts():
+    """公告行"评标办法：综合评分法"（空 snippet）+ 真实评审章 → 正常产出 + 空章红标。
+
+    真实证据：和县老旧小区走查样本 tech_score 唯一命中是采购公告内的空声明行，
+    真正评分表在「（六）评审」章。
+    """
+    empty_decl = _mk_match("", "第一章采购公告 / 7.评标办法：综合评分法", page=2)
+    real = _mk_match(
+        "商务评分 40分\n1. 企业业绩 40分 提供业绩证明\n技术评分 60分\n1. 监理大纲 60分",
+        "第七章附件 / （六）评审",
+        page=11,
+    )
+    payload = scoring_extract.extract_score_table([empty_decl, real], generated_at="t")
+    assert payload["categories"]
+    assert payload["total_score_check"]["ok"] is True
+    empty_flags = [f for f in payload["red_flags"] if f["type"] == "score_section_empty"]
+    assert len(empty_flags) == 1
+    assert "评标办法" in empty_flags[0]["source_chapter"]
+
+
+def test_ft6_all_empty_matches_only_red_flags_no_categories():
+    """全部评分章节均无评分内容 → 不产 category，逐章红标（service 层硬门禁据此阻断）。"""
+    payload = scoring_extract.extract_score_table(
+        [
+            _mk_match("", "第七章 / 1.评标办法"),
+            _mk_match("评审小组按程序评审，无分值表。", "第七章 / 2.评审标准"),
+        ],
+        generated_at="t",
+    )
+    assert payload["categories"] == []
+    empty_flags = [f for f in payload["red_flags"] if f["type"] == "score_section_empty"]
+    assert len(empty_flags) == 2
+
+
+# ---------- FT-5：多分值评分行取满分值而非首值 ----------
+
+
+def test_ft5_multi_score_line_takes_max_not_first() -> None:
+    """「每项5分，满分20分」应取 20（满分值），非首值 5。"""
+    snippet = "技术评分 100分\n1. 技术方案 每项5分，满分20分\n2. 监理大纲 80分"
+    payload = scoring_extract.extract_score_table(
+        [_mk_match(snippet, "第三章 评标办法")], generated_at="t"
+    )
+    items = payload["categories"][0]["items"]
+    target = next(i for i in items if "技术方案" in i["name"])
+    assert target["score"] == 20.0
+
+
+def test_ft5_multi_score_line_variants() -> None:
+    """满分/共/总计/合计 后的数值应被取为评分项分值。"""
+    cases = [
+        ("1. 业绩评分 每项5分，满分20分", 20.0),
+        ("1. 业绩评分 每项5分，共20分", 20.0),
+        ("1. 业绩评分 每项5分，总计20分", 20.0),
+        ("1. 业绩评分 每项5分，合计20分", 20.0),
+    ]
+    for line, expected in cases:
+        snippet = f"商务评分 40分\n{line}"
+        payload = scoring_extract.extract_score_table(
+            [_mk_match(snippet, "第三章")], generated_at="t"
+        )
+        items = payload["categories"][0]["items"]
+        assert items[0]["score"] == expected, f"Failed for: {line}"
+
+
+def test_ft5_simple_score_unchanged() -> None:
+    """简单行「企业业绩 20分」不受 FT-5 改动影响，仍取 20。"""
+    snippet = "商务评分 40分\n1. 企业业绩 20分\n2. 人员力量 20分"
+    payload = scoring_extract.extract_score_table([_mk_match(snippet, "第三章")], generated_at="t")
+    items = payload["categories"][0]["items"]
+    assert items[0]["score"] == 20.0
+    assert items[1]["score"] == 20.0
+
+
+def test_ft5_name_excludes_full_score_marker() -> None:
+    """满分标记不应残留在评分项名称中。"""
+    snippet = "技术评分 100分\n1. 技术方案评分 每项5分，满分20分\n2. 其他 80分"
+    payload = scoring_extract.extract_score_table([_mk_match(snippet, "第三章")], generated_at="t")
+    items = payload["categories"][0]["items"]
+    name = items[0]["name"]
+    assert "满分" not in name
+    assert "每项" not in name
+    assert "技术方案" in name
+
+
 def test_schema_rejects_bad_threshold_kind():
     payload = {
         "version": 1,
