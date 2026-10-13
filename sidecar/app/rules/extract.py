@@ -41,10 +41,13 @@ def _block_text(block: dict[str, Any]) -> str:
 class _Flat:
     """章节树节点的文档序展开（含祖先路径与层级）。"""
 
-    def __init__(self, node: dict[str, Any], path: str) -> None:
+    def __init__(self, node: dict[str, Any], path: str, ancestor_ids: frozenset[str]) -> None:
         self.node = node
         self.path = path  # 如 "第一章 招标公告 / 一、项目概述"
         self.level = int(node.get("level", 1))
+        self.node_id = str(node.get("id", ""))
+        # 同 source 章节树内全部祖先节点 id（FT-6 父子去重依据）
+        self.ancestor_ids = ancestor_ids
         anchor = node.get("anchor") or {}
         self.page_idx = int(anchor.get("page_idx", 0))
         self.bbox = anchor.get("bbox") if isinstance(anchor.get("bbox"), list) else None
@@ -55,14 +58,19 @@ class _Flat:
         self.heading_idx: int | None = None  # 在 content_list 中的块下标
 
 
-def _flatten(nodes: list[dict[str, Any]], parent_path: str = "") -> list[_Flat]:
+def _flatten(
+    nodes: list[dict[str, Any]],
+    parent_path: str = "",
+    ancestor_ids: frozenset[str] = frozenset(),
+) -> list[_Flat]:
     out: list[_Flat] = []
     for node in nodes:
         heading = f"{node.get('number', '')}{node.get('title', '')}".strip()
         path = f"{parent_path} / {heading}" if parent_path else heading
-        flat = _Flat(node, path)
+        flat = _Flat(node, path, ancestor_ids)
         out.append(flat)
-        out.extend(_flatten(node.get("children") or [], path))
+        child_ancestors = ancestor_ids | {flat.node_id} if flat.node_id else ancestor_ids
+        out.extend(_flatten(node.get("children") or [], path, child_ancestors))
     return out
 
 
@@ -174,16 +182,26 @@ def run_extraction(
             continue
 
         norm_keywords = [_norm(k) for k in rule.keywords]
+        norm_exact = [_norm(k) for k in rule.exact_keywords]
         matches: list[dict[str, Any]] = []
         for src in per_source:
             stem = src["stem"]
             blocks = src["blocks"]
             flats = src["flats"]
             full_text = full_texts[stem]
+            hits: list[tuple[int, _Flat]] = []
             for idx, flat in enumerate(flats):
                 norm_title = _norm(flat.title)
-                if not any(k in norm_title for k in norm_keywords):
+                contained = any(k and k in norm_title for k in norm_keywords)
+                exacted = any(k and k == norm_title for k in norm_exact)
+                if not (contained or exacted):
                     continue
+                hits.append((idx, flat))
+            # FT-6：同 key 同 source 内祖先章节已命中时丢弃后代——
+            # 祖先子树已覆盖后代全部正文，保留后代会造成评分项等内容重复抽取
+            hit_ids = {f.node_id for _, f in hits if f.node_id}
+            hits = [(idx, f) for idx, f in hits if not (f.ancestor_ids & hit_ids)]
+            for idx, flat in hits:
                 subtree = _subtree_blocks(blocks, flats, idx)
                 text = _subtree_text(subtree)
                 constraints: list[dict[str, Any]] = []

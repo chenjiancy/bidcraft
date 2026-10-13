@@ -12,7 +12,7 @@ from typing import Literal
 
 from app.parse.config import KEY_ITEMS, OPTIONAL_ITEMS
 
-RULES_VERSION = "1.0.0"
+RULES_VERSION = "1.1.0"
 
 Category = Literal["资格条款", "废标条款", "商务评分", "技术要求", "通用"]
 CAT_QUALIFICATION: Category = "资格条款"
@@ -28,14 +28,31 @@ class RuleEntry:
     label: str
     category: Category
     keywords: tuple[str, ...]  # 章节/子节标题关键词（归一化后包含匹配）
+    exact_keywords: tuple[str, ...] = ()  # 归一化后须与标题完全相等（裸短词专用，防子串误命中）
 
 
 # key → (category, keywords)；label 取自 parse.config，保证单一事实源
+# FT-6（2026-10）：依据和县 6 个真实监理招标/采购文件扩充评审类标题词
 _TABLE: dict[str, tuple[Category, tuple[str, ...]]] = {
     "project_overview": (CAT_GENERAL, ("项目概述", "项目概况", "工程概况", "项目简介", "概述")),
     "tech_score": (
         CAT_TECH,
-        ("技术评分", "技术部分评分", "技术标评分", "评分办法", "评标办法", "评分标准"),
+        (
+            "技术评分",
+            "技术部分评分",
+            "技术标评分",
+            "评分办法",
+            "评标办法",
+            "评分标准",
+            # FT-6：竞争性磋商/谈判文件与公开招标文件评审章真实写法
+            "评审办法",
+            "评审方法",
+            "评审标准",
+            "评审与磋商",
+            "评审因素",
+            "评分细则",
+            "详细评审",
+        ),
     ),
     "project_info": (CAT_GENERAL, ("项目信息", "项目基本情况", "基本情况")),
     "buyer_info": (
@@ -54,7 +71,10 @@ _TABLE: dict[str, tuple[Category, tuple[str, ...]]] = {
         ),
     ),
     "agency_info": (CAT_GENERAL, ("代理机构", "招标代理")),
-    "business_score": (CAT_BIZ_SCORE, ("商务评分", "商务部分评分", "商务标评分")),
+    "business_score": (
+        CAT_BIZ_SCORE,
+        ("商务评分", "商务部分评分", "商务标评分", "商务评审", "商务部分评审"),
+    ),
     "invalid_bid": (CAT_INVALID, ("废标", "无效标", "无效投标", "否决投标", "否决其投标")),
     "delivery_service": (
         CAT_TECH,
@@ -74,12 +94,26 @@ _TABLE: dict[str, tuple[Category, tuple[str, ...]]] = {
     "contract_termination": (CAT_GENERAL, ("合同解除", "合同终止", "解除和终止")),
 }
 
+# FT-6：裸短词精确匹配表——竞争性磋商文件标准章节「（五/六）评审」即评分办法所在
+# （和县 4 个磋商样本实证）；不得做子串匹配，否则误命中"初步评审/评审小组"等。
+_EXACT_TABLE: dict[str, tuple[str, ...]] = {
+    "tech_score": ("评审",),
+}
+
 
 def _build_rules() -> tuple[RuleEntry, ...]:
     entries: list[RuleEntry] = []
     for key, label in (*KEY_ITEMS, *OPTIONAL_ITEMS):
         category, keywords = _TABLE[key]
-        entries.append(RuleEntry(key=key, label=label, category=category, keywords=keywords))
+        entries.append(
+            RuleEntry(
+                key=key,
+                label=label,
+                category=category,
+                keywords=keywords,
+                exact_keywords=_EXACT_TABLE.get(key, ()),
+            )
+        )
     return tuple(entries)
 
 
