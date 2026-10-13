@@ -114,3 +114,63 @@ class RapidOcrBackend(OcrBackend):
 def build_default_ocr() -> OcrBackend:
     """归档管线默认 OCR 后端工厂（API 层统一经此注入，便于切换/测试）。"""
     return RapidOcrBackend()
+
+
+# ---------- FT-2：多专业/多字段断行合并 ----------
+
+_MULTI_LINE_FIELD_KEYWORDS = frozenset(
+    {
+        "注册专业",
+        "资质等级",
+        "承包范围",
+        "经营范围",
+        "执业范围",
+        "专业类别",
+        "从事专业",
+        "业务范围",
+    }
+)
+
+
+def merge_continuation_lines(text: str) -> str:
+    """合并字段续行（FT-2）。
+
+    OCR 常将多值字段断成多行，次行无字段名前缀。例如：
+    「注册专业:房屋建筑工程\\n市政公用工程」合并为
+    「注册专业:房屋建筑工程、市政公用工程」。
+
+    规则：
+    - 上一行以已知多值字段关键词开头且含分隔符（：/:）时进入续行模式。
+    - 续行模式下，不含分隔符且不以已知字段关键词开头的行视为续行，
+      用「、」连接到上一行。
+    - 空行或含分隔符的行终止续行模式。
+    """
+    lines = text.split("\n")
+    result: list[str] = []
+    in_continuation = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if not stripped:
+            in_continuation = False
+            result.append(line)
+            continue
+
+        has_delimiter = "：" in stripped or ":" in stripped
+        starts_known_field = any(stripped.startswith(kw) for kw in _MULTI_LINE_FIELD_KEYWORDS)
+
+        if in_continuation and not has_delimiter and not starts_known_field:
+            if result:
+                result[-1] = result[-1] + "、" + stripped
+            else:
+                result.append(stripped)
+                in_continuation = False
+        elif starts_known_field and has_delimiter:
+            in_continuation = True
+            result.append(stripped)
+        else:
+            in_continuation = False
+            result.append(stripped)
+
+    return "\n".join(result)
