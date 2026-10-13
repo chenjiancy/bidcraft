@@ -142,7 +142,7 @@
 - [ ] **FT-1：扫描水印/页眉重复行过滤**——扫描软件水印（如「汉王扫描王/扫描识别王中王」每页重复）混入 ocr_text，需在归档 OCR 后做跨页重复行识别与剥离（可借鉴 chapters 页眉窗口机制）
 - [ ] **FT-2：多专业/多字段断行合并**——注册证「注册专业:房屋建筑工程」与次行「市政公用工程」分行、无字段名，正则取不到第二专业；需字段续行合并规则
 - [ ] **FT-3：印章/签名区域误识降噪**——印章、手写签名产生 0.5~0.9 置信度零散噪声行，评估版面位置或置信度策略
-- [ ] **FT-4：PyInstaller 真实 exe 构建验证**——onnxruntime/cv2 DLL 与 rapidocr 模型在打包产物中是否齐全，实际构建并验证一次
+- [x] **FT-4：PyInstaller 真实 exe 构建验证**——onnxruntime/cv2 DLL 与 rapidocr 模型在打包产物中是否齐全，实际构建并验证一次 ✅ PR #64（exe 122.5MB，onnxruntime/cv2/rapidocr 模型全部打入，健康检查 200 OK）
 - [x] **FT-5：多分值评分行**——新增 _FULL_SCORE 正则取满分/共/总计/合计后的分值；_PER_ITEM 排除大类误判；名称清理修饰词（PR #60，pytest 302 passed + ruff + mypy 全绿；基于 FT-6 分支创建，建议先合并 PR #59）
 - [x] **FT-6：评分标题关键词扩充**——tech_score 补 7 词 + business_score 补 2 词 + exact_keywords 裸「评审」精确匹配 + 同 key 父子去重 + 空内容章节红标；RULES_VERSION/SCORING_VERSION→1.1.0（PR #59，pytest 298 passed + ruff + mypy 全绿；真实样本验证：和县老旧小区 EPC 采购文件 tech_score 从 missing→found）
   - 披露：切章器把「（六）评审」章内评分项（5.~9.综合比较…）错切成平级独立节点致 snippet 截断（Task 8 缺陷，另立 FT-7）
