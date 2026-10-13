@@ -22,6 +22,10 @@ SCORING_VERSION = "1.1.0"
 _CATEGORY_KEYWORDS = ("商务", "技术", "价格", "资信", "报价")
 # 分值行：含"分"的数字行（如 "企业业绩 20分" / "监理大纲（30分）"）
 _SCORE_LINE = re.compile(r"(\d+(?:\.\d+)?)\s*分")
+# FT-5：满分/共/总计/合计 后的分值（如 "每项5分，满分20分" → 取 20）
+_FULL_SCORE = re.compile(r"(?:满分|共|总计|合计)\s*(\d+(?:\.\d+)?)\s*分")
+# FT-5：每项模式（如 "每项5分" / "每项最高5分"），用于排除大类误判
+_PER_ITEM = re.compile(r"每(?:项|个|条).*?\d+(?:\.\d+)?\s*分")
 # 评分项标题前缀：数字编号（1. / (1) / 一、 等）
 _ITEM_PREFIX = re.compile(r"^[\s]*(?:\(?\d+\)|[一二三四五六七八九十]+[、.．]|\d+[、.．])")
 # 所需证明材料：括号内或"提供/附"引导
@@ -52,6 +56,9 @@ def _is_category_line(line: str) -> bool:
         return False
     if not _ITEM_PREFIX.match(line):
         return True
+    # FT-5：「每项5分，满分20分」含满分但不是大类，是评分项
+    if _PER_ITEM.search(line):
+        return False
     return bool(re.search(r"(?:满分|合计|总计|总分|共)\s*\d+(?:\.\d+)?\s*分", line))
 
 
@@ -95,15 +102,21 @@ def _parse_score_items(
         line = _norm_line(line)
         if not line or _is_category_line(line):
             continue
+        # FT-5：优先取满分/共/总计/合计 后的分值，再退回首值
+        full_m = _FULL_SCORE.search(line)
         score_m = _SCORE_LINE.search(line)
         if not score_m:
             continue
-        score = float(score_m.group(1))
+        score = float(full_m.group(1)) if full_m else float(score_m.group(1))
         if score > _MAX_ITEM_SCORE:
             continue
-        # 评分项名称：分值前的文字（去除编号前缀与括号分值）
+        # 评分项名称：去除编号前缀与分值标注
         name = _ITEM_PREFIX.sub("", line)
-        name = _SCORE_LINE.sub("", name).strip(" ：:，,。()（）")
+        # FT-5：先删「每项5分」整段（需保留「分」字才能匹配），再删剩余分值与修饰词
+        name = _PER_ITEM.sub("", name)
+        name = _SCORE_LINE.sub("", name)
+        name = re.sub(r"(?:满分|共|总计|合计)\s*", "", name)
+        name = name.strip(" ：:，,。()（）")
         if not name or len(name) > 60:
             continue
         materials = _extract_materials(line)
